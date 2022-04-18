@@ -38,6 +38,7 @@ type Enum interface {
 // See Value for the Go types associated with a FieldDescriptor.
 // Providing a Value that is invalid or of an incorrect type panics.
 type Message interface {
+
 	// Descriptor returns message descriptor, which contains only the protobuf
 	// type information for the message.
 	Descriptor() MessageDescriptor
@@ -154,6 +155,8 @@ type Message interface {
 	// The returned methods type is identical to
 	// "google.golang.org/protobuf/runtime/protoiface".Methods.
 	// Consult the protoiface package documentation for details.
+	//
+	//
 	ProtoMethods() *methods
 }
 

@@ -293,8 +293,10 @@ type FieldDescriptor interface {
 
 	// Number reports the unique number for this field.
 	Number() FieldNumber
+
 	// Cardinality reports the cardinality for this field.
 	Cardinality() Cardinality
+
 	// Kind reports the basic kind for this field.
 	Kind() Kind
 

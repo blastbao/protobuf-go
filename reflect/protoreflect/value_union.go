@@ -128,7 +128,10 @@ func ValueOfBool(v bool) Value {
 
 // ValueOfInt32 returns a new int32 value.
 func ValueOfInt32(v int32) Value {
-	return Value{typ: int32Type, num: uint64(v)}
+	return Value{
+		typ: int32Type,
+		num: uint64(v),
+	}
 }
 
 // ValueOfInt64 returns a new int64 value.

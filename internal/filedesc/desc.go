@@ -34,29 +34,42 @@ import (
 // directly construct descriptors.
 
 type (
+
+	// File 文件
 	File struct {
 		fileRaw
 		L1 FileL1
 
+		//
 		once uint32     // atomically set if L2 is valid
 		mu   sync.Mutex // protects L2
 		L2   *FileL2
 	}
+
 	FileL1 struct {
+		// 语法
 		Syntax  pref.Syntax
+		// 路径
 		Path    string
+		// 包名
 		Package pref.FullName
 
+		// 枚举
 		Enums      Enums
+		// 消息
 		Messages   Messages
+		// 扩展
 		Extensions Extensions
+		// 服务
 		Services   Services
 	}
+
 	FileL2 struct {
 		Options   func() pref.ProtoMessage
 		Imports   FileImports
 		Locations SourceLocations
 	}
+
 )
 
 func (fd *File) ParentFile() pref.FileDescriptor { return fd }
@@ -115,9 +128,11 @@ type (
 		L1 EnumL1
 		L2 *EnumL2 // protected by fileDesc.once
 	}
+
 	EnumL1 struct {
 		eagerValues bool // controls whether EnumL2.Values is already populated
 	}
+
 	EnumL2 struct {
 		Options        func() pref.ProtoMessage
 		Values         EnumValues
@@ -129,6 +144,7 @@ type (
 		Base
 		L1 EnumValueL1
 	}
+
 	EnumValueL1 struct {
 		Options func() pref.ProtoMessage
 		Number  pref.EnumNumber
@@ -190,10 +206,12 @@ type (
 		ExtensionRangeOptions []func() pref.ProtoMessage // must be same length as ExtensionRanges
 	}
 
+
 	Field struct {
 		Base
 		L1 FieldL1
 	}
+
 	FieldL1 struct {
 		Options          func() pref.ProtoMessage
 		Number           pref.FieldNumber
@@ -478,6 +496,7 @@ type (
 	Base struct {
 		L0 BaseL0
 	}
+
 	BaseL0 struct {
 		FullName   pref.FullName // must be populated
 		ParentFile *File         // must be populated

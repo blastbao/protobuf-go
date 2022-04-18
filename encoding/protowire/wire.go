@@ -164,6 +164,7 @@ func consumeFieldValueD(num Number, typ Type, b []byte, depth int) (n int) {
 
 // AppendTag encodes num and typ as a varint-encoded tag and appends it to b.
 func AppendTag(b []byte, num Number, typ Type) []byte {
+	// 同旧版本一致
 	return AppendVarint(b, EncodeTag(num, typ))
 }
 

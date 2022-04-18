@@ -30,13 +30,16 @@ func (o MarshalOptions) Size(m Message) int {
 // For profiling purposes, avoid changing the name of this function or
 // introducing other code paths for size that do not go through this.
 func (o MarshalOptions) size(m protoreflect.Message) (size int) {
+
 	methods := protoMethods(m)
+
 	if methods != nil && methods.Size != nil {
 		out := methods.Size(protoiface.SizeInput{
 			Message: m,
 		})
 		return out.Size
 	}
+
 	if methods != nil && methods.Marshal != nil {
 		// This is not efficient, but we don't have any choice.
 		// This case is mainly used for legacy types with a Marshal method.
@@ -45,13 +48,17 @@ func (o MarshalOptions) size(m protoreflect.Message) (size int) {
 		})
 		return len(out.Buf)
 	}
+
+
 	return o.sizeMessageSlow(m)
 }
 
 func (o MarshalOptions) sizeMessageSlow(m protoreflect.Message) (size int) {
+
 	if messageset.IsMessageSet(m.Descriptor()) {
 		return o.sizeMessageSet(m)
 	}
+
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 		size += o.sizeField(fd, v)
 		return true

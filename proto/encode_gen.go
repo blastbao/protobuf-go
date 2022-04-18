@@ -74,14 +74,18 @@ func (o MarshalOptions) marshalSingular(b []byte, fd protoreflect.FieldDescripto
 		b = protowire.AppendString(b, v.String())
 	case protoreflect.BytesKind:
 		b = protowire.AppendBytes(b, v.Bytes())
+	// 如果是内嵌的 message 类型，
 	case protoreflect.MessageKind:
 		var pos int
 		var err error
+		// 占位 length
 		b, pos = appendSpeculativeLength(b)
+		// 调用外层函数
 		b, err = o.marshalMessage(b, v.Message())
 		if err != nil {
 			return b, err
 		}
+		// 回填 lenght
 		b = finishSpeculativeLength(b, pos)
 	case protoreflect.GroupKind:
 		var err error

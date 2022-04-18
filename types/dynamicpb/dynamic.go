@@ -62,10 +62,17 @@ type extensionType struct {
 // with a compatible type.
 //
 // Operations which modify a Message are not safe for concurrent use.
+//
+//
+//
 type Message struct {
+	// 类型
 	typ     messageType
+	// 常规字段
 	known   map[pref.FieldNumber]pref.Value
+	// 扩展字段
 	ext     map[pref.FieldNumber]pref.FieldDescriptor
+	// 未知字段
 	unknown pref.RawFields
 }
 
@@ -134,15 +141,20 @@ func (m *Message) ProtoMethods() *protoiface.Methods {
 
 // Range visits every populated field in undefined order.
 // See protoreflect.Message for details.
+//
+// 对每个字段执行 f 。
 func (m *Message) Range(f func(pref.FieldDescriptor, pref.Value) bool) {
 	for num, v := range m.known {
+		// 获取 field descriptor
 		fd := m.ext[num]
 		if fd == nil {
 			fd = m.Descriptor().Fields().ByNumber(num)
 		}
+		// 检查 v 是否为空
 		if !isSet(fd, v) {
 			continue
 		}
+		// 执行 f()
 		if !f(fd, v) {
 			return
 		}
@@ -152,14 +164,21 @@ func (m *Message) Range(f func(pref.FieldDescriptor, pref.Value) bool) {
 // Has reports whether a field is populated.
 // See protoreflect.Message for details.
 func (m *Message) Has(fd pref.FieldDescriptor) bool {
+	// 检查 fd 是否是 message 内的合法字段，若不是则 panic 。
 	m.checkField(fd)
+
+	// 扩展字段
 	if fd.IsExtension() && m.ext[fd.Number()] != fd {
 		return false
 	}
+
+	// 常规字段
 	v, ok := m.known[fd.Number()]
 	if !ok {
 		return false
 	}
+
+	// 检查 v 是否已被赋值
 	return isSet(fd, v)
 }
 
@@ -183,6 +202,8 @@ func (m *Message) Get(fd pref.FieldDescriptor) pref.Value {
 		}
 		return m.known[num]
 	}
+
+	// 若存在、且已赋值，则返回
 	if v, ok := m.known[num]; ok {
 		switch {
 		case fd.IsMap():
@@ -197,6 +218,8 @@ func (m *Message) Get(fd pref.FieldDescriptor) pref.Value {
 			return v
 		}
 	}
+
+	// 若不存在，或未赋值，则返回空对象
 	switch {
 	case fd.IsMap():
 		return pref.ValueOfMap(&dynamicMap{desc: fd})
@@ -209,18 +232,22 @@ func (m *Message) Get(fd pref.FieldDescriptor) pref.Value {
 	default:
 		return fd.Default()
 	}
+
 }
 
 // Mutable returns a mutable reference to a repeated, map, or message field.
 // See protoreflect.Message for details.
 func (m *Message) Mutable(fd pref.FieldDescriptor) pref.Value {
 	m.checkField(fd)
+
 	if !fd.IsMap() && !fd.IsList() && fd.Message() == nil {
 		panic(errors.New("%v: getting mutable reference to non-composite type", fd.FullName()))
 	}
+
 	if m.known == nil {
 		panic(errors.New("%v: modification of read-only message", fd.FullName()))
 	}
+
 	num := fd.Number()
 	if fd.IsExtension() {
 		if fd != m.ext[num] {
@@ -229,9 +256,11 @@ func (m *Message) Mutable(fd pref.FieldDescriptor) pref.Value {
 		}
 		return m.known[num]
 	}
+
 	if v, ok := m.known[num]; ok {
 		return v
 	}
+
 	m.clearOtherOneofFields(fd)
 	m.known[num] = m.NewField(fd)
 	if fd.IsExtension() {
@@ -337,16 +366,21 @@ func (m *Message) IsValid() bool {
 	return m.known != nil
 }
 
+// 检查 fd 是否是 message 内的合法字段。
 func (m *Message) checkField(fd pref.FieldDescriptor) {
+
 	if fd.IsExtension() && fd.ContainingMessage().FullName() == m.Descriptor().FullName() {
 		if _, ok := fd.(pref.ExtensionTypeDescriptor); !ok {
 			panic(errors.New("%v: extension field descriptor does not implement ExtensionTypeDescriptor", fd.FullName()))
 		}
 		return
 	}
+
+	//
 	if fd.Parent() == m.Descriptor() {
 		return
 	}
+
 	fields := m.Descriptor().Fields()
 	index := fd.Index()
 	if index >= fields.Len() || fields.Get(index) != fd {
@@ -395,8 +429,13 @@ func (x emptyList) Truncate(n int)            { panic(errors.New("modification o
 func (x emptyList) NewElement() pref.Value    { return newListEntry(x.desc) }
 func (x emptyList) IsValid() bool             { return false }
 
+
+
+// 动态链表
 type dynamicList struct {
+	// 字段描述符
 	desc pref.FieldDescriptor
+	// 值列表
 	list []pref.Value
 }
 
@@ -409,12 +448,16 @@ func (x *dynamicList) Get(n int) pref.Value {
 }
 
 func (x *dynamicList) Set(n int, v pref.Value) {
+	// 检查 v 是否是 x.desc 类型的合法值
 	typecheckSingular(x.desc, v)
+	// 保存
 	x.list[n] = v
 }
 
 func (x *dynamicList) Append(v pref.Value) {
+	// 检查 v 是否是 x.desc 类型的合法值
 	typecheckSingular(x.desc, v)
+	// 追加
 	x.list = append(x.list, v)
 }
 
@@ -422,7 +465,9 @@ func (x *dynamicList) AppendMutable() pref.Value {
 	if x.desc.Message() == nil {
 		panic(errors.New("%v: invalid AppendMutable on list with non-message type", x.desc.FullName()))
 	}
+	// 创建 x.desc 类型下的默认值
 	v := x.NewElement()
+	// 追加
 	x.Append(v)
 	return v
 }
@@ -448,14 +493,27 @@ type dynamicMap struct {
 	mapv map[interface{}]pref.Value
 }
 
-func (x *dynamicMap) Get(k pref.MapKey) pref.Value { return x.mapv[k.Interface()] }
+func (x *dynamicMap) Get(k pref.MapKey) pref.Value {
+	return x.mapv[k.Interface()]
+}
+
 func (x *dynamicMap) Set(k pref.MapKey, v pref.Value) {
+	// 检查 k 是否是 x.desc.MapKey() 类型的合法值
 	typecheckSingular(x.desc.MapKey(), k.Value())
+	// 检查 k 是否是 x.desc.MapValue() 类型的合法值
 	typecheckSingular(x.desc.MapValue(), v)
+	// 保存
 	x.mapv[k.Interface()] = v
 }
-func (x *dynamicMap) Has(k pref.MapKey) bool { return x.Get(k).IsValid() }
-func (x *dynamicMap) Clear(k pref.MapKey)    { delete(x.mapv, k.Interface()) }
+
+func (x *dynamicMap) Has(k pref.MapKey) bool {
+	return x.Get(k).IsValid()
+}
+
+func (x *dynamicMap) Clear(k pref.MapKey)    {
+	delete(x.mapv, k.Interface())
+}
+
 func (x *dynamicMap) Mutable(k pref.MapKey) pref.Value {
 	if x.desc.MapValue().Message() == nil {
 		panic(errors.New("%v: invalid Mutable on map with non-message value type", x.desc.FullName()))
@@ -521,16 +579,20 @@ func typecheck(fd pref.FieldDescriptor, v pref.Value) {
 	}
 }
 
+// 检查 v 是否是类型 fd 的合法值。
 func typeIsValid(fd pref.FieldDescriptor, v pref.Value) error {
+	// [复合类型]
 	switch {
 	case !v.IsValid():
 		return errors.New("%v: assigning invalid value", fd.FullName())
 	case fd.IsMap():
+		// 如果 v 不是 dynamicMap 类型，则报错返回。
 		if mapv, ok := v.Interface().(*dynamicMap); !ok || mapv.desc != fd || !mapv.IsValid() {
 			return errors.New("%v: assigning invalid type %T", fd.FullName(), v.Interface())
 		}
 		return nil
 	case fd.IsList():
+		// 如果 v 不是 dynamicList/emptyList 类型，则报错返回。
 		switch list := v.Interface().(type) {
 		case *dynamicList:
 			if list.desc == fd && list.IsValid() {
@@ -543,8 +605,10 @@ func typeIsValid(fd pref.FieldDescriptor, v pref.Value) error {
 		}
 		return errors.New("%v: assigning invalid type %T", fd.FullName(), v.Interface())
 	default:
-		return singularTypeIsValid(fd, v)
 	}
+
+	// [单值类型]
+	return singularTypeIsValid(fd, v)
 }
 
 func typecheckSingular(fd pref.FieldDescriptor, v pref.Value) {
@@ -553,6 +617,7 @@ func typecheckSingular(fd pref.FieldDescriptor, v pref.Value) {
 	}
 }
 
+// 检查 v 是否是 fd 类型的合法值
 func singularTypeIsValid(fd pref.FieldDescriptor, v pref.Value) error {
 	vi := v.Interface()
 	var ok bool
@@ -594,6 +659,7 @@ func singularTypeIsValid(fd pref.FieldDescriptor, v pref.Value) error {
 	return nil
 }
 
+// 返回 fd 类型下的默认值
 func newListEntry(fd pref.FieldDescriptor) pref.Value {
 	switch fd.Kind() {
 	case pref.BoolKind:

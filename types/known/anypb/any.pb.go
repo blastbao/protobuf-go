@@ -264,13 +264,16 @@ func New(src proto.Message) (*Any, error) {
 // If no options are specified, call dst.MarshalFrom instead.
 func MarshalFrom(dst *Any, src proto.Message, opts proto.MarshalOptions) error {
 	const urlPrefix = "type.googleapis.com/"
+
 	if src == nil {
 		return protoimpl.X.NewError("invalid nil source message")
 	}
+
 	b, err := opts.Marshal(src)
 	if err != nil {
 		return err
 	}
+
 	dst.TypeUrl = urlPrefix + string(src.ProtoReflect().Descriptor().FullName())
 	dst.Value = b
 	return nil

@@ -24,13 +24,17 @@ var messageFieldPool = sync.Pool{
 type (
 	// FieldRnger is an interface for visiting all fields in a message.
 	// The protoreflect.Message type implements this interface.
-	FieldRanger interface{ Range(VisitField) }
+	FieldRanger interface{
+		Range(VisitField)
+	}
+
 	// VisitField is called everytime a message field is visited.
 	VisitField = func(pref.FieldDescriptor, pref.Value) bool
 )
 
 // RangeFields iterates over the fields of fs according to the specified order.
 func RangeFields(fs FieldRanger, less FieldOrder, fn VisitField) {
+
 	if less == nil {
 		fs.Range(fn)
 		return

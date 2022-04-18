@@ -150,7 +150,9 @@ type doNotImplement pragma.DoNotImplement
 // ProtoMessage is the top-level interface that all proto messages implement.
 // This is declared in the protoreflect package to avoid a cyclic dependency;
 // use the proto.Message type instead, which aliases this type.
-type ProtoMessage interface{ ProtoReflect() Message }
+type ProtoMessage interface{
+	ProtoReflect() Message
+}
 
 // Syntax is the language version of the proto file.
 type Syntax syntax
