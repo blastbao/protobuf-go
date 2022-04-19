@@ -11,6 +11,17 @@ import (
 	"google.golang.org/protobuf/runtime/protoiface"
 )
 
+// 假设接收方的 proto3 中定义了某个字段（假设 field number=1），
+// 当接收方从字节流中读取到多个 field number=1 的字段时，会执行 merge 操作。
+//
+// merge 的规则如下：
+//	- 如果字段为不可分割的类型，则直接覆盖
+//	- 如果字段为 repeated，则 append 到已有字段
+//	- 如果字段为嵌套消息，则递归执行 merge
+//
+//
+//
+
 // Merge merges src into dst, which must be a message with the same descriptor.
 //
 // Populated scalar fields in src are copied to dst, while populated

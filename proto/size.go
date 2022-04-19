@@ -87,7 +87,6 @@ func (o MarshalOptions) sizeList(num protowire.Number, fd protoreflect.FieldDesc
 		}
 		return protowire.SizeTag(num) + protowire.SizeBytes(content)
 	}
-
 	for i, llen := 0, list.Len(); i < llen; i++ {
 		size += protowire.SizeTag(num) + o.sizeSingular(num, fd.Kind(), list.Get(i))
 	}

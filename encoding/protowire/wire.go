@@ -189,17 +189,21 @@ func SizeTag(num Number) int {
 // AppendVarint appends v to b as a varint-encoded uint64.
 func AppendVarint(b []byte, v uint64) []byte {
 	switch {
+	// < 128
 	case v < 1<<7:
 		b = append(b, byte(v))
+	// < 16384
 	case v < 1<<14:
 		b = append(b,
 			byte((v>>0)&0x7f|0x80),
 			byte(v>>7))
+	// < 2097152
 	case v < 1<<21:
 		b = append(b,
 			byte((v>>0)&0x7f|0x80),
 			byte((v>>7)&0x7f|0x80),
 			byte(v>>14))
+	// < 268435456
 	case v < 1<<28:
 		b = append(b,
 			byte((v>>0)&0x7f|0x80),
@@ -512,6 +516,33 @@ func DecodeTag(x uint64) (Number, Type) {
 }
 
 // EncodeTag encodes the field Number and wire Type into its unified form.
+//
+// 源码中生成的 tag 是 uint64，代表着 field number 可以使用 61 个 bit 吗？并非如此。
+// 事实上，tag 的长度不能超过 32 bits，意味着 field number 的最大取值为 2^29-1 (536870911)。
+// 而且在这个范围内，有一些数是不能被使用的：
+//	- 0 ，protobuf 规定 field number 必须为正整数。
+//	- 19000 到 19999， protobuf 仅供内部使用的保留位。
+//
+//
+// 理解了生成 tag 的规则之后，不难得出以下结论：
+//	- field number 不必从 1 开始，可以从合法范围内的任意数字开始。
+//	- 不同字段间的 field number 不必连续，只要合法且不同即可。
+//
+// 但是实际上，大多数人分配 field number 还是会从 1 开始，因为 tag 最终要经过 Varints 编码，
+// 较小的 field number 有助于压缩空间，field number 为 1 到 15 的 tag 最终仅需占用一个字节。
+//
+// 当你的 message 有超过 15 个字段时，Google 也不建议你将 1 到 15 立马用完。
+// 如果你的业务日后有新增字段的可能，并且新增的字段使用比较频繁，你应该在 1 到 15 内预留一部分供新增的字段使用。
+//
+// 当你修改的 proto 文件需要注意：
+//	- field number 一旦被分配了就不应该被更改，除非你能保证所有的接收方都能更新到最新的 proto 文件。
+//	- 由于 tag 中不携带 field name 信息，更改 field name 并不会改变消息的结构。
+//	  发送方认为的 apple 到接受方可能会被识别成 pear。
+//	  双方把字段读取成哪个名字完全由双方自己的 proto 文件决定，只要字段的 wire type 和 field number 相同即可。
+//	- 由于 tag 中携带的类型是 wire type，不是语言中具体的某个数据结构，而同一个 wire type 可以被解码成多种数据结构，
+//	  具体解码成哪一种是根据接收方自己的 proto 文件定义的。
+//	  修改 proto 文件中的类型，有可能导致错误。
+//
 func EncodeTag(num Number, typ Type) uint64 {
 	return uint64(num)<<3 | uint64(typ&7)
 }

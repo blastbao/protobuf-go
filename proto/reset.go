@@ -14,7 +14,9 @@ import (
 // The resulting message shares no observable memory with its previous state
 // other than the memory for the message itself.
 func Reset(m Message) {
-	if mr, ok := m.(interface{ Reset() }); ok && hasProtoMethods {
+	if mr, ok := m.(interface{
+		Reset()
+	}); ok && hasProtoMethods {
 		mr.Reset()
 		return
 	}
