@@ -137,6 +137,30 @@
 // may not always be an ExtensionTypeDescriptor.
 package protoreflect
 
+
+
+
+// 动态 protobuf 的原理
+//
+//	这里的动态并不是指字段可以随意改变，而是在运行时根据代码逻辑构建出 FieldDescriptorProto ，
+//	并以此为字段的定义依据通过反射来序列化/反序列化 protobuf 消息。
+//
+//					静态 pb							动态 pb
+//	字段定义		通过.proto 文件定义					在运行时通过代码逻辑定义，产物是 FileDescriptor
+//	编译			通过 protoc 进行编译，				无需编译
+//				生成固定 struct 和 Marshal、
+//				Unmarshal 等操作方法的 go 代码
+//	使用			调用生成的代码对消息进行序列化和			使用 protoreflect 下面的反射方法，
+//				反序列化等操作						依据 FileDescriptor 的定义，对消息进行序列化和反序列化等操作
+//
+// 我这边的场景基本上是这样玩的：
+//	某个服务，启动时构建 FileDescriptor ，从里面掏一个 MessageDescriptor 出来，
+//	用它创建一个 Message 对象，并将数据塞进去，最后 Marshal 成二进制（也称为 wire format）。
+//	另一个服务，启动时使用同样的过程构建 FileDescriptor ，从里面把 MessageDescriptor 掏出来，
+//	用它创建一个 Message 对象，把之前的那坨二进制 Unmarshal 进去。
+//	然后按照 MessageDescriptor 里面的各种 FieldDescriptor（也就是字段定义）用 Message 对象上的一些反射方法把字段的数据取出来。
+//
+
 import (
 	"fmt"
 	"strings"
@@ -150,14 +174,23 @@ type doNotImplement pragma.DoNotImplement
 // ProtoMessage is the top-level interface that all proto messages implement.
 // This is declared in the protoreflect package to avoid a cyclic dependency;
 // use the proto.Message type instead, which aliases this type.
+//
+// ProtoMessage 是所有 proto 消息实现的顶层接口。
+// 这个接口在 protoreflect 包中声明，以避免循环的依赖性。
+// 使用 proto.Message 类型来代替，它是这个类型的别名。
 type ProtoMessage interface{
 	ProtoReflect() Message
 }
 
 // Syntax is the language version of the proto file.
+//
+// Syntax 是 proto 文件的语法版本。
 type Syntax syntax
 
-type syntax int8 // keep exact type opaque as the int type may change
+// keep exact type opaque as the int type may change
+//
+// 保持精确的类型不透明，因为 int 类型可能会改变。
+type syntax int8
 
 const (
 	Proto2 Syntax = 2
@@ -199,11 +232,15 @@ func (s Syntax) GoString() string {
 }
 
 // Cardinality determines whether a field is optional, required, or repeated.
+//
+// Cardinality 决定了一个字段是否是 optional, required, or repeated 。
 type Cardinality cardinality
 
 type cardinality int8 // keep exact type opaque as the int type may change
 
 // Constants as defined by the google.protobuf.Cardinality enumeration.
+//
+// 支持的基数类型。
 const (
 	Optional Cardinality = 1 // appears zero or one times
 	Required Cardinality = 2 // appears exactly one time; invalid with Proto3
@@ -254,6 +291,8 @@ type Kind kind
 type kind int8 // keep exact type opaque as the int type may change
 
 // Constants as defined by the google.protobuf.Field.Kind enumeration.
+//
+// 支持的字段类型。
 const (
 	BoolKind     Kind = 8
 	EnumKind     Kind = 14
@@ -379,15 +418,24 @@ func (k Kind) GoString() string {
 }
 
 // FieldNumber is the field number in a message.
+//
+// 字段 ID
 type FieldNumber = protowire.Number
 
 // FieldNumbers represent a list of field numbers.
+//
+// 字段 ID 列表
 type FieldNumbers interface {
 	// Len reports the number of fields in the list.
+	// 字段数量。
 	Len() int
+
 	// Get returns the ith field number. It panics if out of bounds.
+	// 第 i 字段
 	Get(i int) FieldNumber
+
 	// Has reports whether n is within the list of fields.
+	// 是否存在
 	Has(n FieldNumber) bool
 
 	doNotImplement
@@ -397,8 +445,10 @@ type FieldNumbers interface {
 type FieldRanges interface {
 	// Len reports the number of ranges in the list.
 	Len() int
+
 	// Get returns the ith range. It panics if out of bounds.
 	Get(i int) [2]FieldNumber // start inclusive; end exclusive
+
 	// Has reports whether n is within any of the ranges.
 	Has(n FieldNumber) bool
 
@@ -406,6 +456,8 @@ type FieldRanges interface {
 }
 
 // EnumNumber is the numeric value for an enum.
+//
+// 枚举 ID
 type EnumNumber int32
 
 // EnumRanges represent a list of enum number ranges.
@@ -422,6 +474,7 @@ type EnumRanges interface {
 
 // Name is the short name for a proto declaration. This is not the name
 // as used in Go source code, which might not be identical to the proto name.
+//
 type Name string // e.g., "Kind"
 
 // IsValid reports whether s is a syntactically valid name.

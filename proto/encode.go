@@ -28,6 +28,42 @@ import (
 //		- 使用了新版本的 Protobuf，序列化实现不同。
 //		- 消息字段顺序不同。
 
+
+
+// Protobuf 消息的结构为键/值对的集合，其中数字标签为键，相应的字段为值。
+// 字段名称是供人类阅读的，但是 protoc 编译器的确使用了字段名称来生成特定于语言的对应名称。
+// 例如，Protobuf IDL 中的 oddA 和 small 名称在 Go 结构中分别成为字段 OddA 和 Small。
+//
+// 键和它们的值都被编码，但是有一个重要的区别：
+//	一些数字值具有固定大小的 32 或 64 位的编码，而其他数字（包括消息标签）则是 varint 编码的，位数取决于整数的绝对值。
+//	例如，整数值 1 到 15 需要 8 位 varint 编码，而值 16 到 2047 需要 16 位。
+//
+// varint 编码在本质上与 UTF-8 编码类似（但细节不同），它偏爱较小的整数值而不是较大的整数值。
+// 结果是，Protobuf 消息应该在字段中具有较小的整数值（如果可能），并且键数应尽可能少，但每个字段至少得有一个键。
+//
+// 下表 1 列出了 Protobuf 编码的要点：
+//		编码  		示例类型 						长度
+//		varint 		int32、uint32、int64、uint64		可变长度
+//		fixed		fixed32、float、double			固定的 32/64 位长度
+//		字节序列		string、bytes					序列长度
+//
+//
+// 可见，未明确固定长度的整数类型是 varint 编码的；
+// 因此，在 varint 类型中，例如 uint32（u 代表无符号），数字 32 描述了整数的范围（在这种情况下为 0 到 232 - 1），
+// 而不是其位的大小，该位大小取决于值。
+//
+// 相比之下，对于固定长度类型（例如 fixed32 或 double），Protobuf 编码分别需要 32 位和 64 位。
+//
+// Protobuf 中的字符串是字节序列；因此，字段编码的大小就是字节序列的长度。
+//
+// 另一个高效的方法值得一提，如下示例，其中的 DataItems 消息由重复的 DataItem 实例组成：
+//		message DataItems {
+//  		repeated DataItem item = 1;
+//		}
+// repeated 表示 DataItem 实例是打包的：集合具有单个标签，在这里是 1 。
+// 因此，具有重复的 DataItem 实例的 DataItems 消息比具有多个但单独的 DataItem 字段、每个字段都需要自己的标签的消息的效率更高。
+//
+
 // MarshalOptions configures the marshaler.
 //
 // Example usage:

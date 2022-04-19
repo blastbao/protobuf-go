@@ -18,11 +18,30 @@ package protoreflect
 // they still represent the same proto type (e.g., t1.FullName == t2.FullName).
 // This can occur if a descriptor type is created dynamically, or multiple
 // versions of the same proto type are accidentally linked into the Go binary.
+//
+//
+// Descriptor 提供了一组每个描述符都通用的访问器。
+// 每个描述符类型都包装了等价的 google.protobuf.XXXDescriptorProto.Details ，但提供了有效的查找和不变性。
+//
+// 每个 Descriptor 都是可比较的。
+// Equality 意味着这两种类型完全相同。
+// 然而，同一语义上相同的原语类型有可能被多个类型描述符所代表。
+// 相同的 proto type 由多个类型描述符来表示。
+//
+// 例如，假设我们有 t1 和 t2 ，它们都是 MessageDescriptors 。
+// 如果 t1 == t2 ，那么这两种类型肯定是相等的，所有的访问器都会返回相同的信息。
+// 如果 t1 != t2 ，那么它们仍有可能代表相同的 proto 类型（例如，t1.FullName == t2.FullName）。
+//
+// 如果描述符类型是动态创建的，或者同一 proto 类型的多个版本被意外地链接到 Go 二进制文件中，就会出现这种情况。
 type Descriptor interface {
 	// ParentFile returns the parent file descriptor that this descriptor
 	// is declared within. The parent file for the file descriptor is itself.
 	//
 	// Support for this functionality is optional and may return nil.
+	//
+	// ParentFile 返回该描述符所被声明的父文件描述符。对于文件描述符，其父文件就是它自己。
+	//
+	// 对该功能的支持是可选的，可能会返回 nil 。
 	ParentFile() FileDescriptor
 
 	// Parent returns the parent containing this descriptor declaration.
@@ -42,11 +61,16 @@ type Descriptor interface {
 	//	╚═════════════════════╧═══════════════════════════════════╝
 	//
 	// Support for this functionality is optional and may return nil.
+	//
+	// Parent 返回包含该描述符声明的父类。
 	Parent() Descriptor
 
 	// Index returns the index of this descriptor within its parent.
 	// It returns 0 if the descriptor does not have a parent or if the parent
 	// is unknown.
+	//
+	// Index 返回该描述符在其 Parent 中的索引。
+	// 如果该描述符没有 Parent 或 Parent 未知，则返回 0 。
 	Index() int
 
 	// Syntax is the protobuf syntax.
@@ -62,6 +86,10 @@ type Descriptor interface {
 	// field "foo_field" in message "proto.package.MyMessage" is
 	// uniquely identified as "proto.package.MyMessage.foo_field".
 	// Enum values are an exception to the rule (see EnumValueDescriptor).
+	//
+	// FullName 返回类型的全名。
+	// 例如，消息 "proto.package.MyMessage" 中的字段 "foo_field" 被唯一地标识为 "proto.package.MyMessage.foo_field"。
+	// 枚举值是该规则的一个例外（见 EnumValueDescriptor ）。
 	FullName() FullName // e.g., "google.protobuf.Any"
 
 	// IsPlaceholder reports whether type information is missing since a
@@ -84,6 +112,8 @@ type Descriptor interface {
 	//
 	// If true, only Name and FullName are valid.
 	// For FileDescriptor, the Path is also valid.
+	//
+	// IsPlaceholder 报告类型信息是否缺失，因为一个依赖关系没有被解决，在这种情况下只知道名字信息。
 	IsPlaceholder() bool
 
 	// Options returns the descriptor options. The caller must not modify
@@ -106,6 +136,8 @@ type Descriptor interface {
 	//
 	// This method returns a typed nil-pointer if no options are present.
 	// The caller must import the descriptorpb package to use this.
+	//
+	// Options 返回描述符的选项。调用者不得修改返回的值。
 	Options() ProtoMessage
 
 	doNotImplement
@@ -182,6 +214,8 @@ type FileImport struct {
 // Nested declarations:
 // FieldDescriptor, OneofDescriptor, FieldDescriptor, EnumDescriptor,
 // and/or MessageDescriptor.
+//
+//
 type MessageDescriptor interface {
 	Descriptor
 
@@ -641,12 +675,19 @@ type MethodDescriptor interface {
 	Descriptor
 
 	// Input is the input message descriptor.
+	// 输入
 	Input() MessageDescriptor
+
 	// Output is the output message descriptor.
+	// 输出
 	Output() MessageDescriptor
+
 	// IsStreamingClient reports whether the client streams multiple messages.
+	// 是否 stream 客户端
 	IsStreamingClient() bool
+
 	// IsStreamingServer reports whether the server streams multiple messages.
+	// 是否 stream 服务端
 	IsStreamingServer() bool
 
 	isMethodDescriptor

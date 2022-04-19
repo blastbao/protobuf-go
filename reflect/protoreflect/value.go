@@ -10,6 +10,9 @@ import "google.golang.org/protobuf/encoding/protowire"
 // which provides type information and a getter for the enum number.
 // Enum does not provide a mutable API since enums are commonly backed by
 // Go constants, which are not addressable.
+//
+//
+//
 type Enum interface {
 	// Descriptor returns enum descriptor, which contains only the protobuf
 	// type information for the enum.

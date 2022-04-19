@@ -11,6 +11,9 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+
+// 根据字段的 fieldNumber ，类型，值来计算大小。
+// 因为 fieldNumber 和 wireType 所占大小在外部已经计算，这里 num 几乎没有用到。
 func (o MarshalOptions) sizeSingular(num protowire.Number, kind protoreflect.Kind, v protoreflect.Value) int {
 	switch kind {
 	case protoreflect.BoolKind:

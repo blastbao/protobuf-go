@@ -8,6 +8,11 @@
 // are programs which read a CodeGeneratorRequest message from standard input
 // and write a CodeGeneratorResponse message to standard output.
 // This package provides support for writing plugins which generate Go code.
+//
+// 包 protogen 提供了对编写 protoc 插件的支持。
+//
+// protoc（ pb 编译器）插件是指从标准输入读取 CodeGeneratorRequest 消息并将 CodeGeneratorResponse 消息写入标准输出的程序。
+// 本包提供了对编写生成 Go 代码的 protoc 插件的支持。
 package protogen
 
 import (
@@ -48,6 +53,9 @@ const goPackageDocURL = "https://developers.google.com/protocol-buffers/docs/ref
 //
 // If a failure occurs while reading or writing, Run prints an error to
 // os.Stderr and calls os.Exit(1).
+//
+// Run 从 os.Stdin 读取一个 CodeGeneratorRequest 消息，调用插件函数，并将 CodeGeneratorResponse 消息写到 os.Stdout。
+// 如果在读或写时发生故障，Run 将错误打印到 os.Stderr 并调用 os.Exit(1)。
 func (opts Options) Run(f func(*Plugin) error) {
 	if err := run(opts, f); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", filepath.Base(os.Args[0]), err)
@@ -56,9 +64,14 @@ func (opts Options) Run(f func(*Plugin) error) {
 }
 
 func run(opts Options, f func(*Plugin) error) error {
+
+	// 参数检查
 	if len(os.Args) > 1 {
+		// 这个程序应该由 protoc 运行，而不是直接运行
 		return fmt.Errorf("unknown argument %q (this program should be run by protoc, not directly)", os.Args[1])
 	}
+
+	// 从 os.Stdin 读取 CodeGeneratorRequest{}
 	in, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		return err
@@ -67,10 +80,14 @@ func run(opts Options, f func(*Plugin) error) error {
 	if err := proto.Unmarshal(in, req); err != nil {
 		return err
 	}
+
+	// 构造 plugin
 	gen, err := opts.New(req)
 	if err != nil {
 		return err
 	}
+
+	// 执行 plugin
 	if err := f(gen); err != nil {
 		// Errors from the plugin function are reported by setting the
 		// error field in the CodeGeneratorResponse.
@@ -80,11 +97,15 @@ func run(opts Options, f func(*Plugin) error) error {
 		// to stderr.
 		gen.Error(err)
 	}
+
+	// 构造响应
 	resp := gen.Response()
 	out, err := proto.Marshal(resp)
 	if err != nil {
 		return err
 	}
+
+	// 向 os.Stdout 写入 CodeGeneratorResponse{}
 	if _, err := os.Stdout.Write(out); err != nil {
 		return err
 	}
@@ -151,7 +172,10 @@ type Options struct {
 }
 
 // New returns a new Plugin.
+//
+// 创建 plugin
 func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
+
 	gen := &Plugin{
 		Request:        req,
 		FilesByPath:    make(map[string]*File),
@@ -161,14 +185,21 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		opts:           opts,
 	}
 
-	packageNames := make(map[string]GoPackageName) // filename -> package name
-	importPaths := make(map[string]GoImportPath)   // filename -> import path
+	// filename -> package name
+	packageNames := make(map[string]GoPackageName)
+	// filename -> import path
+	importPaths := make(map[string]GoImportPath)
+
+	// 遍历参数列表，解析出 k=v
 	for _, param := range strings.Split(req.GetParameter(), ",") {
+
+		// 解析 value
 		var value string
 		if i := strings.Index(param, "="); i >= 0 {
 			value = param[i+1:]
 			param = param[0:i]
 		}
+
 		switch param {
 		case "":
 			// Ignore.
@@ -209,6 +240,7 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 			}
 		}
 	}
+
 	// When the module= option is provided, we strip the module name
 	// prefix from generated files. This only makes sense if generated
 	// filenames are based on the import path.
@@ -230,6 +262,10 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 	//
 	// Alternatively, build systems which want to exert full control over
 	// import paths may specify M<filename>=<import_path> flags.
+	//
+	//
+	//
+	// 遍历 .proto 文件
 	for _, fdesc := range gen.Request.ProtoFile {
 		// The "M" command-line flags take precedence over
 		// the "go_package" option in the .proto source file.
@@ -289,6 +325,7 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		}
 		packageFiles[importPath] = append(packageFiles[importPath], filename)
 	}
+
 	for importPath, filenames := range packageFiles {
 		for i := 1; i < len(filenames); i++ {
 			if a, b := packageNames[filenames[0]], packageNames[filenames[i]]; a != b {
@@ -310,6 +347,7 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		gen.Files = append(gen.Files, f)
 		gen.FilesByPath[filename] = f
 	}
+
 	for _, filename := range gen.Request.FileToGenerate {
 		f, ok := gen.FilesByPath[filename]
 		if !ok {
@@ -317,6 +355,7 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		}
 		f.Generate = true
 	}
+	
 	return gen, nil
 }
 
@@ -379,19 +418,31 @@ func (gen *Plugin) Response() *pluginpb.CodeGeneratorResponse {
 }
 
 // A File describes a .proto source file.
+//
+// File 描述 .proto 源文件
 type File struct {
+	// 文件信息
 	Desc  protoreflect.FileDescriptor
+	// 协议信息
 	Proto *descriptorpb.FileDescriptorProto
 
+	// Go 标识符
 	GoDescriptorIdent GoIdent       // name of Go variable for the file descriptor
+	// 包名
 	GoPackageName     GoPackageName // name of this file's Go package
+	// 引用名
 	GoImportPath      GoImportPath  // import path of this file's Go package
 
+	// 枚举
 	Enums      []*Enum      // top-level enum declarations
+	// 消息
 	Messages   []*Message   // top-level message declarations
+	// 扩展
 	Extensions []*Extension // top-level extension declarations
+	// 服务
 	Services   []*Service   // top-level service declarations
 
+	// 代码生成
 	Generate bool // true if we should generate code for this file
 
 	// GeneratedFilenamePrefix is used to construct filenames for generated
@@ -399,19 +450,27 @@ type File struct {
 	//
 	// For example, the source file "dir/foo.proto" might have a filename prefix
 	// of "dir/foo". Appending ".pb.go" produces an output file of "dir/foo.pb.go".
+	//
+	// GeneratedFilenamePrefix 用于构建与此源文件相关的生成文件的文件名。
+	//
+	// 例如，源文件 "dir/foo.proto" 的文件名前缀可能是 "dir/foo" ，加上 ".pb.go" 会产生一个输出文件 "dir/foo.pb.go"。
 	GeneratedFilenamePrefix string
 
+	// 路径
 	location Location
 }
 
 func newFile(gen *Plugin, p *descriptorpb.FileDescriptorProto, packageName GoPackageName, importPath GoImportPath) (*File, error) {
+
 	desc, err := protodesc.NewFile(p, gen.fileReg)
 	if err != nil {
 		return nil, fmt.Errorf("invalid FileDescriptorProto %q: %v", p.GetName(), err)
 	}
+
 	if err := gen.fileReg.RegisterFile(desc); err != nil {
 		return nil, fmt.Errorf("cannot register descriptor %q: %v", p.GetName(), err)
 	}
+
 	f := &File{
 		Desc:          desc,
 		Proto:         p,
@@ -484,6 +543,7 @@ func splitImportPathAndPackageName(s string) (GoImportPath, GoPackageName) {
 type Enum struct {
 	Desc protoreflect.EnumDescriptor
 
+	// Go 标识符
 	GoIdent GoIdent // name of the generated Go type
 
 	Values []*EnumValue // enum value declarations
@@ -1163,16 +1223,23 @@ func (g *GeneratedFile) metaFile(content []byte) (string, error) {
 
 // A GoIdent is a Go identifier, consisting of a name and import path.
 // The name is a single identifier and may not be a dot-qualified selector.
+//
+// GoIdent 是一个 Go 标识符，由名称和导入路径组成。
+// name 是一个单一的标识符，不能是一个点限定的选择器。
 type GoIdent struct {
-	GoName       string
-	GoImportPath GoImportPath
+	GoName       string			// 标识符
+	GoImportPath GoImportPath	// 导入路径
 }
 
 func (id GoIdent) String() string { return fmt.Sprintf("%q.%v", id.GoImportPath, id.GoName) }
 
 // newGoIdent returns the Go identifier for a descriptor.
 func newGoIdent(f *File, d protoreflect.Descriptor) GoIdent {
-	name := strings.TrimPrefix(string(d.FullName()), string(f.Desc.Package())+".")
+	// d.FullName() 是完整的引用名
+	// f.Desc.Package() 包名
+	//
+	// 将完整引用名去掉报名前缀，然后转换成驼峰格式。
+ 	name := strings.TrimPrefix(string(d.FullName()), string(f.Desc.Package())+".")
 	return GoIdent{
 		GoName:       strs.GoCamelCase(name),
 		GoImportPath: f.GoImportPath,

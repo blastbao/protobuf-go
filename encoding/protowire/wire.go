@@ -21,10 +21,10 @@ import (
 type Number int32
 
 const (
-	MinValidNumber        Number = 1
-	FirstReservedNumber   Number = 19000
-	LastReservedNumber    Number = 19999
-	MaxValidNumber        Number = 1<<29 - 1
+	MinValidNumber        Number = 1			// 最小可用字段
+	FirstReservedNumber   Number = 19000 		// 保留字段
+	LastReservedNumber    Number = 19999		// 保留字段
+	MaxValidNumber        Number = 1<<29 - 1	// 最大可用字段
 	DefaultRecursionLimit        = 10000
 )
 
