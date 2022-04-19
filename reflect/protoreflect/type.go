@@ -148,29 +148,48 @@ type Descriptor interface {
 //
 // Top-level declarations:
 // EnumDescriptor, MessageDescriptor, FieldDescriptor, and/or ServiceDescriptor.
+//
+//
+// FileDescriptor 描述了一个完整的 proto 文件中的类型，并且与 google.protobuf.FileDescriptorProto 消息相对应。
+//
+// 顶层声明：
+// 	EnumDescriptor, MessageDescriptor, FieldDescriptor, and/or ServiceDescriptor.
 type FileDescriptor interface {
 	Descriptor // Descriptor.FullName is identical to Package
 
 	// Path returns the file name, relative to the source tree root.
+	// 文件名，相对路径
 	Path() string // e.g., "path/to/file.proto"
+
 	// Package returns the protobuf package namespace.
+	// 包名
 	Package() FullName // e.g., "google.protobuf"
 
 	// Imports is a list of imported proto files.
+	// 导入列表
 	Imports() FileImports
 
 	// Enums is a list of the top-level enum declarations.
+	// 枚举
 	Enums() EnumDescriptors
+
 	// Messages is a list of the top-level message declarations.
+	// 消息
 	Messages() MessageDescriptors
+
 	// Extensions is a list of the top-level extension declarations.
+	// 扩展
 	Extensions() ExtensionDescriptors
+
 	// Services is a list of the top-level service declarations.
+	// 服务
 	Services() ServiceDescriptors
 
 	// SourceLocations is a list of source locations.
+	// 源码区块
 	SourceLocations() SourceLocations
 
+	//
 	isFileDescriptor
 }
 type isFileDescriptor interface{ ProtoType(FileDescriptor) }

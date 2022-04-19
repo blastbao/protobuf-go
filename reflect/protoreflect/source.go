@@ -12,6 +12,7 @@ import (
 type SourceLocations interface {
 	// Len reports the number of source locations in the proto file.
 	Len() int
+
 	// Get returns the ith SourceLocation. It panics if out of bounds.
 	Get(int) SourceLocation
 
@@ -26,6 +27,7 @@ type SourceLocations interface {
 	// ByDescriptor returns the SourceLocation for the given descriptor,
 	// returning the first location if multiple exist for the same path.
 	// If no location exists for this descriptor, it returns the zero value.
+	//
 	ByDescriptor(desc Descriptor) SourceLocation
 
 	doNotImplement
@@ -33,30 +35,50 @@ type SourceLocations interface {
 
 // SourceLocation describes a source location and
 // corresponds with the google.protobuf.SourceCodeInfo.Location message.
+//
+// SourceLocation 描述了一个源位置并与 google.protobuf.SourceCodeInfo.Location 消息相对应。
 type SourceLocation struct {
+
 	// Path is the path to the declaration from the root file descriptor.
 	// The contents of this slice must not be mutated.
+	//
+	// Path 是指从根文件描述符到声明的路径。
 	Path SourcePath
 
 	// StartLine and StartColumn are the zero-indexed starting location
 	// in the source file for the declaration.
+	//
+	// 起始行、列
 	StartLine, StartColumn int
+
 	// EndLine and EndColumn are the zero-indexed ending location
 	// in the source file for the declaration.
 	// In the descriptor.proto, the end line may be omitted if it is identical
 	// to the start line. Here, it is always populated.
+	//
+	// 结束行、列
 	EndLine, EndColumn int
 
 	// LeadingDetachedComments are the leading detached comments
 	// for the declaration. The contents of this slice must not be mutated.
+	//
+	// 前导注释
 	LeadingDetachedComments []string
+
 	// LeadingComments is the leading attached comment for the declaration.
+	//
+	// 前导注释
 	LeadingComments string
+
 	// TrailingComments is the trailing attached comment for the declaration.
+	//
+	// 尾部注释
 	TrailingComments string
 
 	// Next is an index into SourceLocations for the next source location that
 	// has the same Path. It is zero if there is no next location.
+	//
+	// 下一个地址
 	Next int
 }
 

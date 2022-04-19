@@ -355,7 +355,7 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		}
 		f.Generate = true
 	}
-	
+
 	return gen, nil
 }
 
