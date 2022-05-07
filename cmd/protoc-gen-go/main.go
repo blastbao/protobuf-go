@@ -38,13 +38,16 @@ func main() {
 		flags   flag.FlagSet
 		plugins = flags.String("plugins", "", "deprecated option")
 	)
+
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(gen *protogen.Plugin) error {
+		// 不支持 plugin
 		if *plugins != "" {
 			return errors.New("protoc-gen-go: plugins are not supported; use 'protoc --go-grpc_out=...' to generate gRPC\n\n" +
 				"See " + grpcDocURL + " for more information.")
 		}
+		// 生成 xx.pb.go
 		for _, f := range gen.Files {
 			if f.Generate {
 				gengo.GenerateFile(gen, f)

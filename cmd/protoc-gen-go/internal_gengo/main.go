@@ -89,17 +89,22 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.Generated
 		g.P()
 	}
 
+	// 生成import语句
 	for i, imps := 0, f.Desc.Imports(); i < imps.Len(); i++ {
 		genImport(gen, g, f, imps.Get(i))
 	}
+	// 生成enum类型定义语句
 	for _, enum := range f.allEnums {
 		genEnum(g, f, enum)
 	}
+	// 生成message类型定义语句
 	for _, message := range f.allMessages {
 		genMessage(g, f, message)
 	}
+	// 生成extension类型定义语句
 	genExtensions(g, f)
 
+	//
 	genReflectFileDescriptor(gen, g, f)
 
 	return g
@@ -224,30 +229,38 @@ func genImport(gen *protogen.Plugin, g *protogen.GeneratedFile, f *fileInfo, imp
 	g.P()
 }
 
+// 生成指定enum类型的go源代码
 func genEnum(g *protogen.GeneratedFile, f *fileInfo, e *enumInfo) {
 	// Enum type declaration.
 	g.Annotate(e.GoIdent.GoName, e.Location)
-	leadingComments := appendDeprecationSuffix(e.Comments.Leading,
-		e.Desc.Options().(*descriptorpb.EnumOptions).GetDeprecated())
-	g.P(leadingComments,
-		"type ", e.GoIdent, " int32")
+
+	// 前导注释
+	leadingComments := appendDeprecationSuffix(e.Comments.Leading, e.Desc.Options().(*descriptorpb.EnumOptions).GetDeprecated())
+
+	// 生成枚举类型的定义起始部分：type 枚举类型名 int32
+	g.P(leadingComments, "type ", e.GoIdent, " int32")
 
 	// Enum value constants.
+	//
+	// 枚举类型里面的各个枚举值都作为const int32常量来定义
 	g.P("const (")
 	for _, value := range e.Values {
 		g.Annotate(value.GoIdent.GoName, value.Location)
-		leadingComments := appendDeprecationSuffix(value.Comments.Leading,
-			value.Desc.Options().(*descriptorpb.EnumValueOptions).GetDeprecated())
-		g.P(leadingComments,
-			value.GoIdent, " ", e.GoIdent, " = ", value.Desc.Number(),
-			trailingComment(value.Comments.Trailing))
+		leadingComments := appendDeprecationSuffix(value.Comments.Leading, value.Desc.Options().(*descriptorpb.EnumValueOptions).GetDeprecated())
+		// 前导注释、枚举值 name = value 、后导注释
+		g.P(leadingComments, value.GoIdent, " ", e.GoIdent, " = ", value.Desc.Number(), trailingComment(value.Comments.Trailing))
 	}
 	g.P(")")
 	g.P()
 
 	// Enum value maps.
+	//
+	// 生成枚举类型相关的两个map
+	//  - 其中一个是枚举值到枚举名的映射；
+	//  - 另一个是枚举名到枚举值的映射；
 	g.P("// Enum value maps for ", e.GoIdent, ".")
 	g.P("var (")
+	// 第一个map
 	g.P(e.GoIdent.GoName+"_name", " = map[int32]string{")
 	for _, value := range e.Values {
 		duplicate := ""
@@ -257,6 +270,7 @@ func genEnum(g *protogen.GeneratedFile, f *fileInfo, e *enumInfo) {
 		g.P(duplicate, value.Desc.Number(), ": ", strconv.Quote(string(value.Desc.Name())), ",")
 	}
 	g.P("}")
+	// 第二个map
 	g.P(e.GoIdent.GoName+"_value", " = map[string]int32{")
 	for _, value := range e.Values {
 		g.P(strconv.Quote(string(value.Desc.Name())), ": ", value.Desc.Number(), ",")
@@ -264,6 +278,9 @@ func genEnum(g *protogen.GeneratedFile, f *fileInfo, e *enumInfo) {
 	g.P("}")
 	g.P(")")
 	g.P()
+
+	// 其他处理，也会生成部分源代码，这里可以忽略不计了
+	// ...
 
 	// Enum method.
 	//

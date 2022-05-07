@@ -113,7 +113,12 @@ func run(opts Options, f func(*Plugin) error) error {
 }
 
 // A Plugin is a protoc plugin invocation.
+//
+// 首先创建一个代码生成器 generator ，CodeGeneratorRequest、CodeGeneratorResponse
+// 结构体都被保存在 generator 中，CodeGenerateResponse 中保存着代码生成过程中
+// 的错误状态信息，因此我们可以通过这个结构体提取错误状态并进行错误处理
 type Plugin struct {
+
 	// Request is the CodeGeneratorRequest provided by protoc.
 	Request *pluginpb.CodeGeneratorRequest
 
@@ -369,22 +374,31 @@ func (gen *Plugin) Error(err error) {
 
 // Response returns the generator output.
 func (gen *Plugin) Response() *pluginpb.CodeGeneratorResponse {
+	// 响应
 	resp := &pluginpb.CodeGeneratorResponse{}
+
+	// 出错
 	if gen.err != nil {
 		resp.Error = proto.String(gen.err.Error())
 		return resp
 	}
+
+	// 生成文件列表
 	for _, g := range gen.genFiles {
+		// 忽略
 		if g.skip {
 			continue
 		}
+		// 文件内容
 		content, err := g.Content()
 		if err != nil {
 			return &pluginpb.CodeGeneratorResponse{
 				Error: proto.String(err.Error()),
 			}
 		}
+		// 文件名
 		filename := g.filename
+		// 模块名
 		if gen.module != "" {
 			trim := gen.module + "/"
 			if !strings.HasPrefix(filename, trim) {
@@ -394,10 +408,16 @@ func (gen *Plugin) Response() *pluginpb.CodeGeneratorResponse {
 			}
 			filename = strings.TrimPrefix(filename, trim)
 		}
+
+
+
+		// 追加保存到 resp.File 中
 		resp.File = append(resp.File, &pluginpb.CodeGeneratorResponse_File{
 			Name:    proto.String(filename),
 			Content: proto.String(string(content)),
 		})
+
+		// ???
 		if gen.annotateCode && strings.HasSuffix(g.filename, ".go") {
 			meta, err := g.metaFile(content)
 			if err != nil {
@@ -411,9 +431,11 @@ func (gen *Plugin) Response() *pluginpb.CodeGeneratorResponse {
 			})
 		}
 	}
+
 	if gen.SupportedFeatures > 0 {
 		resp.SupportedFeatures = proto.Uint64(gen.SupportedFeatures)
 	}
+
 	return resp
 }
 
@@ -543,12 +565,16 @@ func splitImportPathAndPackageName(s string) (GoImportPath, GoPackageName) {
 type Enum struct {
 	Desc protoreflect.EnumDescriptor
 
-	// Go 标识符
+	// 枚举类型名，形如 "type EnumTypeXXX int32" 语句中的 EnumTypeXXX 。
 	GoIdent GoIdent // name of the generated Go type
 
+	// 枚举值列表
 	Values []*EnumValue // enum value declarations
 
+	// 源码位置
 	Location Location   // location of this enum
+
+	// 注释列表
 	Comments CommentSet // comments associated with this enum
 }
 
@@ -1291,9 +1317,9 @@ func (loc Location) appendPath(num protoreflect.FieldNumber, idx int) Location {
 // CommentSet is a set of leading and trailing comments associated
 // with a .proto descriptor declaration.
 type CommentSet struct {
-	LeadingDetached []Comments
-	Leading         Comments
-	Trailing        Comments
+	LeadingDetached []Comments	// 前导分离注释
+	Leading         Comments	// 前导注释
+	Trailing        Comments    // 后导注释
 }
 
 func makeCommentSet(loc protoreflect.SourceLocation) CommentSet {
