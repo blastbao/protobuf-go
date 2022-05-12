@@ -39,6 +39,8 @@ func main() {
 		plugins = flags.String("plugins", "", "deprecated option")
 	)
 
+
+	// 入口
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(gen *protogen.Plugin) error {
@@ -50,6 +52,7 @@ func main() {
 		// 生成 xx.pb.go
 		for _, f := range gen.Files {
 			if f.Generate {
+				// 生成代码
 				gengo.GenerateFile(gen, f)
 			}
 		}

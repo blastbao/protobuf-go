@@ -66,8 +66,13 @@ type goImportPath interface {
 
 // GenerateFile generates the contents of a .pb.go file.
 func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.GeneratedFile {
+
+	// 指定要生成的文件名
 	filename := file.GeneratedFilenamePrefix + ".pb.go"
+
+	// 告诉 protoc 要生成一个新文件，并获取一个引用 g ，后面可以通过 g 来写入新文件的内容
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
+
 	f := newFileInfo(file)
 
 	genStandaloneComments(g, f, int32(genid.FileDescriptorProto_Syntax_field_number))
@@ -340,8 +345,7 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 	g.Annotate(m.GoIdent.GoName, m.Location)
 	leadingComments := appendDeprecationSuffix(m.Comments.Leading,
 		m.Desc.Options().(*descriptorpb.MessageOptions).GetDeprecated())
-	g.P(leadingComments,
-		"type ", m.GoIdent, " struct {")
+	g.P(leadingComments, "type ", m.GoIdent, " struct {")
 	genMessageFields(g, f, m)
 	g.P("}")
 	g.P()
