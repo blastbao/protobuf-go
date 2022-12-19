@@ -98,7 +98,6 @@ func valueOfIface(v interface{}) Value {
 }
 
 func (v Value) getString() (x string) {
-
 	// [原理]
 	// v.ptr 指向底层 string 数据，v.num 存储了 string 的长度。
 	// 所以 stringHeader{ Data: v.ptr, Len: v.num } 就代表了 go 中的 String 数据。
