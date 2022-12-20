@@ -35,10 +35,9 @@ func main() {
 	}
 
 	var (
-		flags   flag.FlagSet
+		flags   flag.FlagSet	// 保存所有命令行参数
 		plugins = flags.String("plugins", "", "deprecated option")
 	)
-
 
 	// 入口
 	protogen.Options{
@@ -49,13 +48,15 @@ func main() {
 			return errors.New("protoc-gen-go: plugins are not supported; use 'protoc --go-grpc_out=...' to generate gRPC\n\n" +
 				"See " + grpcDocURL + " for more information.")
 		}
-		// 生成 xx.pb.go
+
+		// 遍历所有文件，包含待生成、被导入的所有文件，对于其中指定需要生成代码的文件，执行生成
 		for _, f := range gen.Files {
 			if f.Generate {
-				// 生成代码
-				gengo.GenerateFile(gen, f)
+				gengo.GenerateFile(gen, f) 	// [重要] 核心生成逻辑，生成 xx.pb.go
 			}
 		}
+
+		//
 		gen.SupportedFeatures = gengo.SupportedFeatures
 		return nil
 	})

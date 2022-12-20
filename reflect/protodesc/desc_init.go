@@ -16,31 +16,50 @@ import (
 
 type descsByName map[protoreflect.FullName]protoreflect.Descriptor
 
-func (r descsByName) initEnumDeclarations(eds []*descriptorpb.EnumDescriptorProto, parent protoreflect.Descriptor, sb *strs.Builder) (es []filedesc.Enum, err error) {
+// 把 []*descriptorpb.EnumDescriptorProto 转换为 []filedesc.Enum
+func (r descsByName) initEnumDeclarations(
+	eds []*descriptorpb.EnumDescriptorProto,
+	parent protoreflect.Descriptor,
+	sb *strs.Builder,
+) (
+	es []filedesc.Enum,
+	err error,
+) {
+
 	es = make([]filedesc.Enum, len(eds)) // allocate up-front to ensure stable pointers
 	for i, ed := range eds {
 		e := &es[i]
 		e.L2 = new(filedesc.EnumL2)
+
+		// 初始化 e.L0
 		if e.L0, err = r.makeBase(e, parent, ed.GetName(), i, sb); err != nil {
 			return nil, err
 		}
+
+		// 初始化 e.L2.Ootions
 		if opts := ed.GetOptions(); opts != nil {
 			opts = proto.Clone(opts).(*descriptorpb.EnumOptions)
 			e.L2.Options = func() protoreflect.ProtoMessage { return opts }
 		}
+
+		//
 		for _, s := range ed.GetReservedName() {
 			e.L2.ReservedNames.List = append(e.L2.ReservedNames.List, protoreflect.Name(s))
 		}
+
 		for _, rr := range ed.GetReservedRange() {
 			e.L2.ReservedRanges.List = append(e.L2.ReservedRanges.List, [2]protoreflect.EnumNumber{
 				protoreflect.EnumNumber(rr.GetStart()),
 				protoreflect.EnumNumber(rr.GetEnd()),
 			})
 		}
+
+		// 初始化 e.L2.Values
 		if e.L2.Values.List, err = r.initEnumValuesFromDescriptorProto(ed.GetValue(), e, sb); err != nil {
 			return nil, err
 		}
 	}
+
 	return es, nil
 }
 
@@ -68,12 +87,14 @@ func (r descsByName) initMessagesDeclarations(mds []*descriptorpb.DescriptorProt
 		if m.L0, err = r.makeBase(m, parent, md.GetName(), i, sb); err != nil {
 			return nil, err
 		}
+
 		if opts := md.GetOptions(); opts != nil {
 			opts = proto.Clone(opts).(*descriptorpb.MessageOptions)
 			m.L2.Options = func() protoreflect.ProtoMessage { return opts }
 			m.L1.IsMapEntry = opts.GetMapEntry()
 			m.L1.IsMessageSet = opts.GetMessageSetWireFormat()
 		}
+
 		for _, s := range md.GetReservedName() {
 			m.L2.ReservedNames.List = append(m.L2.ReservedNames.List, protoreflect.Name(s))
 		}
@@ -83,6 +104,8 @@ func (r descsByName) initMessagesDeclarations(mds []*descriptorpb.DescriptorProt
 				protoreflect.FieldNumber(rr.GetEnd()),
 			})
 		}
+
+
 		for _, xr := range md.GetExtensionRange() {
 			m.L2.ExtensionRanges.List = append(m.L2.ExtensionRanges.List, [2]protoreflect.FieldNumber{
 				protoreflect.FieldNumber(xr.GetStart()),
@@ -95,6 +118,7 @@ func (r descsByName) initMessagesDeclarations(mds []*descriptorpb.DescriptorProt
 			}
 			m.L2.ExtensionRangeOptions = append(m.L2.ExtensionRangeOptions, optsFunc)
 		}
+
 		if m.L2.Fields.List, err = r.initFieldsFromDescriptorProto(md.GetField(), m, sb); err != nil {
 			return nil, err
 		}
@@ -110,6 +134,7 @@ func (r descsByName) initMessagesDeclarations(mds []*descriptorpb.DescriptorProt
 		if m.L1.Extensions.List, err = r.initExtensionDeclarations(md.GetExtension(), m, sb); err != nil {
 			return nil, err
 		}
+
 	}
 	return ms, nil
 }
@@ -217,23 +242,38 @@ func (r descsByName) initMethodsFromDescriptorProto(mds []*descriptorpb.MethodDe
 	return ms, nil
 }
 
-func (r descsByName) makeBase(child, parent protoreflect.Descriptor, name string, idx int, sb *strs.Builder) (filedesc.BaseL0, error) {
+func (r descsByName) makeBase(
+	child, parent protoreflect.Descriptor,
+	name string,		//
+	idx int,			//
+	sb *strs.Builder,	//
+) (
+	filedesc.BaseL0,
+	error,
+) {
+
+	// 短名 name 是否合法
 	if !protoreflect.Name(name).IsValid() {
 		return filedesc.BaseL0{}, errors.New("descriptor %q has an invalid nested name: %q", parent.FullName(), name)
 	}
 
 	// Derive the full name of the child.
 	// Note that enum values are a sibling to the enum parent in the namespace.
+	//
+	// 拼接全名，为全局唯一标识符
 	var fullName protoreflect.FullName
 	if _, ok := parent.(protoreflect.EnumDescriptor); ok {
 		fullName = sb.AppendFullName(parent.FullName().Parent(), protoreflect.Name(name))
 	} else {
 		fullName = sb.AppendFullName(parent.FullName(), protoreflect.Name(name))
 	}
+
+	// 检查是否重复声明
 	if _, ok := r[fullName]; ok {
 		return filedesc.BaseL0{}, errors.New("descriptor %q already declared", fullName)
 	}
 	r[fullName] = child
+
 
 	// TODO: Verify that the full name does not already exist in the resolver?
 	// This is not as critical since most usages of NewFile will register

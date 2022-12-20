@@ -95,6 +95,10 @@ func run(opts Options, f func(*Plugin) error) error {
 		// In contrast, errors that indicate a problem in protoc
 		// itself (unparsable input, I/O errors, etc.) are reported
 		// to stderr.
+		//
+		// 来自 plugin 的错误通过设置 CodeGeneratorResponse 中的错误字段来告知。
+		// 不同的，当 protoc 本身有错误（不可解析的输入、I/O错误等）时，会输出到 stderr。
+		//
 		gen.Error(err)
 	}
 
@@ -114,28 +118,37 @@ func run(opts Options, f func(*Plugin) error) error {
 
 // A Plugin is a protoc plugin invocation.
 //
-// 首先创建一个代码生成器 generator ，CodeGeneratorRequest、CodeGeneratorResponse
-// 结构体都被保存在 generator 中，CodeGenerateResponse 中保存着代码生成过程中
-// 的错误状态信息，因此我们可以通过这个结构体提取错误状态并进行错误处理
+// 首先创建一个代码生成器 generator ，
+// 把 CodeGeneratorRequest、CodeGeneratorResponse 结构体都保存在 generator 中，
+// 其中 CodeGenerateResponse 中保存着代码生成过程中的错误状态信息，
+// 因此我们可以通过这个结构体提取错误状态并进行错误处理
 type Plugin struct {
 
 	// Request is the CodeGeneratorRequest provided by protoc.
+	//
+	// protoc 生成的 req 对象
 	Request *pluginpb.CodeGeneratorRequest
 
 	// Files is the set of files to generate and everything they import.
 	// Files appear in topological order, so each file appears before any
 	// file that imports it.
+	//
+	// Files 是待生成文件、导入文件的内存对象集合。
+	// Files 以拓扑顺序出现，文件要出现在导入它的文件之前。
 	Files       []*File
 	FilesByPath map[string]*File
 
 	// SupportedFeatures is the set of protobuf language features supported by
 	// this generator plugin. See the documentation for
 	// google.protobuf.CodeGeneratorResponse.supported_features for details.
+	//
+	// SupportedFeatures 是这个生成器插件所支持的 protobuf 语言特性的集合。
+	// 详情见 google.protobuf.CodeGeneratorResponse.supported_features 。
 	SupportedFeatures uint64
 
-	fileReg        *protoregistry.Files
-	enumsByName    map[protoreflect.FullName]*Enum
-	messagesByName map[protoreflect.FullName]*Message
+	fileReg        *protoregistry.Files					// 注册中心
+	enumsByName    map[protoreflect.FullName]*Enum		// 枚举
+	messagesByName map[protoreflect.FullName]*Message	// 结构体
 	annotateCode   bool
 	pathType       pathType
 	module         string
@@ -168,11 +181,21 @@ type Options struct {
 	//   protogen.Run(opts, func(p *protogen.Plugin) error {
 	//     if *value { ... }
 	//   })
+	//
+	// 如果 ParamFunc 非空，它将被应用到每个参数上。
+	// protoc 插件可以接受来自命令行的参数：
+	//	  --go_out=<param1>=<value1>,<param2>=<value2>:<output_directory>
+	// 其中，以逗号分隔的参数列表会被传入 ParamFunc 。
+	//
+	// 由于 `(flag.FlagSet).Set` 方法正好符合这个参数格式，
+	// 所以可以直接用来解析参数，解析完的参数保存到 `flag.FlagSet` 对象中。
 	ParamFunc func(name, value string) error
 
 	// ImportRewriteFunc is called with the import path of each package
 	// imported by a generated file. It returns the import path to use
 	// for this package.
+	//
+	// 在生成文件时，对每个被它导入的文件(包)调用此函数，得到该文件(包)的导入路径。
 	ImportRewriteFunc func(GoImportPath) GoImportPath
 }
 
@@ -195,7 +218,7 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 	// filename -> import path
 	importPaths := make(map[string]GoImportPath)
 
-	// 遍历参数列表，解析出 k=v
+	// 遍历参数列表，解析出 k=v (逗号分隔）
 	for _, param := range strings.Split(req.GetParameter(), ",") {
 
 		// 解析 value
@@ -228,6 +251,7 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 				return nil, fmt.Errorf(`bad value for parameter %q: want "true" or "false"`, param)
 			}
 		default:
+			// 修正文件导入路径
 			if param[0] == 'M' {
 				impPath, pkgName := splitImportPathAndPackageName(value)
 				if pkgName != "" {
@@ -246,12 +270,14 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		}
 	}
 
+
 	// When the module= option is provided, we strip the module name
 	// prefix from generated files. This only makes sense if generated
 	// filenames are based on the import path.
 	if gen.module != "" && gen.pathType == pathTypeSourceRelative {
 		return nil, fmt.Errorf("cannot use module= with paths=source_relative")
 	}
+
 
 	// Figure out the import path and package name for each file.
 	//
@@ -269,11 +295,10 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 	// import paths may specify M<filename>=<import_path> flags.
 	//
 	//
-	//
 	// 遍历 .proto 文件
 	for _, fdesc := range gen.Request.ProtoFile {
-		// The "M" command-line flags take precedence over
-		// the "go_package" option in the .proto source file.
+		// The "M" command-line flags take precedence over the "go_package" option in the .proto source file.
+		// 命令行参数中 "M" 标志优先于 .proto 源文件中的 "go_package" 选项。
 		filename := fdesc.GetName()
 		impPath, pkgName := splitImportPathAndPackageName(fdesc.GetOptions().GetGoPackage())
 		if importPaths[filename] == "" && impPath != "" {
@@ -319,13 +344,13 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		}
 	}
 
-	// Consistency check: Every file with the same Go import path should have
-	// the same Go package name.
+	// Consistency check: Every file with the same Go import path should have the same Go package name.
+	// 一致性检查。每个具有相同 Go import path 的文件都应该具有相同的 Go package 名称。
 	packageFiles := make(map[GoImportPath][]string)
 	for filename, importPath := range importPaths {
 		if _, ok := packageNames[filename]; !ok {
-			// Skip files mentioned in a M<file>=<import_path> parameter
-			// but which do not appear in the CodeGeneratorRequest.
+			// Skip files mentioned in a M<file>=<import_path> parameter but which do not appear in the CodeGeneratorRequest.
+			// 跳过 M<file>=<import_path> 参数中指定的文件。
 			continue
 		}
 		packageFiles[importPath] = append(packageFiles[importPath], filename)
@@ -340,19 +365,28 @@ func (opts Options) New(req *pluginpb.CodeGeneratorRequest) (*Plugin, error) {
 		}
 	}
 
+	// 遍历所有 proto 文件，包含待编译的文件以及其所包含的文件，这些文件以拓扑顺序排序
 	for _, fdesc := range gen.Request.ProtoFile {
+		// 文件名（relative to root of source tree）
 		filename := fdesc.GetName()
+		// 是否已存在（环？）
 		if gen.FilesByPath[filename] != nil {
 			return nil, fmt.Errorf("duplicate file name: %q", filename)
 		}
+
+		// 把 fdesc 转换成内存对象 file ，中间会用 reflect 包中转一下
 		f, err := newFile(gen, fdesc, packageNames[filename], importPaths[filename])
 		if err != nil {
 			return nil, err
 		}
+
+		// 保存文件对象
 		gen.Files = append(gen.Files, f)
+		// 保存文件对象和文件名的映射
 		gen.FilesByPath[filename] = f
 	}
 
+	// 遍历待生成的 proto 文件，设置 generate 标记
 	for _, filename := range gen.Request.FileToGenerate {
 		f, ok := gen.FilesByPath[filename]
 		if !ok {
@@ -482,30 +516,46 @@ type File struct {
 	location Location
 }
 
-func newFile(gen *Plugin, p *descriptorpb.FileDescriptorProto, packageName GoPackageName, importPath GoImportPath) (*File, error) {
+// 因为 descriptorpb.FileDescriptorProto 是定义在 pb 里的交互协议，不方便直接操作，
+// 所以需要先转换为内存对象 protobuf-go/internal/filedesc File ，再进行操作；
+// 但是因为生成逻辑复杂，对象间不是简单的一一对应关系，需要引入其他类型的 File 对象，如 File/FileImport/PlaceholderFile 等等，
+// 所以，把这些对象统一抽象成为 FileDescriptor 的 interface 。
+// 同理，也把 pb 中定义的 Enum/Message 等也抽象成 interface 。
+//
+// 注意，这些 interface 都定义在 reflect 包中。
+//
+// 可是，在 protogen 包中仍定义了 File/Enum/Message 等对象，这些对象就是从 reflect 包的各种 interface 转换过来的。
+func newFile(gen *Plugin, fdp *descriptorpb.FileDescriptorProto, packageName GoPackageName, importPath GoImportPath) (*File, error) {
 
-	desc, err := protodesc.NewFile(p, gen.fileReg)
+	// 基于 fdp 创建一个新的 protoreflect.FileDescriptor
+	desc, err := protodesc.NewFile(fdp, gen.fileReg)
 	if err != nil {
-		return nil, fmt.Errorf("invalid FileDescriptorProto %q: %v", p.GetName(), err)
+		return nil, fmt.Errorf("invalid FileDescriptorProto %q: %v", fdp.GetName(), err)
 	}
 
+	// 将 desc 注册到注册中心里
 	if err := gen.fileReg.RegisterFile(desc); err != nil {
-		return nil, fmt.Errorf("cannot register descriptor %q: %v", p.GetName(), err)
+		return nil, fmt.Errorf("cannot register descriptor %q: %v", fdp.GetName(), err)
 	}
 
+	// 把 fdp 和 fd 封装成 File 对象
 	f := &File{
 		Desc:          desc,
-		Proto:         p,
+		Proto:         fdp,
 		GoPackageName: packageName,
 		GoImportPath:  importPath,
-		location:      Location{SourceFile: desc.Path()},
+		location:      Location{
+			SourceFile: desc.Path(),
+		},
 	}
 
 	// Determine the prefix for generated Go files.
-	prefix := p.GetName()
+	// 确定生成文件的前缀
+	prefix := fdp.GetName()
 	if ext := path.Ext(prefix); ext == ".proto" || ext == ".protodevel" {
 		prefix = prefix[:len(prefix)-len(ext)]
 	}
+
 	switch gen.pathType {
 	case pathTypeImport:
 		// If paths=import, the output filename is derived from the Go import path.
@@ -514,17 +564,23 @@ func newFile(gen *Plugin, p *descriptorpb.FileDescriptorProto, packageName GoPac
 		// If paths=source_relative, the output filename is derived from
 		// the input filename.
 	}
+
 	f.GoDescriptorIdent = GoIdent{
-		GoName:       "File_" + strs.GoSanitized(p.GetName()),
+		GoName:       "File_" + strs.GoSanitized(fdp.GetName()),
 		GoImportPath: f.GoImportPath,
 	}
 	f.GeneratedFilenamePrefix = prefix
+
+
+	/// 基于 desc 填充 File 对象中的各种字段，此时不再需要原始的 fdp 对象了。
+
 
 	for i, eds := 0, desc.Enums(); i < eds.Len(); i++ {
 		f.Enums = append(f.Enums, newEnum(gen, f, nil, eds.Get(i)))
 	}
 	for i, mds := 0, desc.Messages(); i < mds.Len(); i++ {
-		f.Messages = append(f.Messages, newMessage(gen, f, nil, mds.Get(i)))
+		msg := newMessage(gen, f, nil, mds.Get(i))
+		f.Messages = append(f.Messages, msg)
 	}
 	for i, xds := 0, desc.Extensions(); i < xds.Len(); i++ {
 		f.Extensions = append(f.Extensions, newField(gen, f, nil, xds.Get(i)))
@@ -554,6 +610,8 @@ func newFile(gen *Plugin, p *descriptorpb.FileDescriptorProto, packageName GoPac
 
 // splitImportPathAndPackageName splits off the optional Go package name
 // from the Go import path when seperated by a ';' delimiter.
+//
+// 格式 = "导入路径;包名"
 func splitImportPathAndPackageName(s string) (GoImportPath, GoPackageName) {
 	if i := strings.Index(s, ";"); i >= 0 {
 		return GoImportPath(s[:i]), GoPackageName(s[i+1:])
@@ -579,22 +637,30 @@ type Enum struct {
 }
 
 func newEnum(gen *Plugin, f *File, parent *Message, desc protoreflect.EnumDescriptor) *Enum {
+
+	// 位置信息
 	var loc Location
 	if parent != nil {
 		loc = parent.Location.appendPath(genid.DescriptorProto_EnumType_field_number, desc.Index())
 	} else {
 		loc = f.location.appendPath(genid.FileDescriptorProto_EnumType_field_number, desc.Index())
 	}
+
 	enum := &Enum{
 		Desc:     desc,
 		GoIdent:  newGoIdent(f, desc),
 		Location: loc,
 		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)),
 	}
+
+	// 保存 <枚举名, msg>
 	gen.enumsByName[desc.FullName()] = enum
+
+	//
 	for i, vds := 0, enum.Desc.Values(); i < vds.Len(); i++ {
 		enum.Values = append(enum.Values, newEnumValue(gen, f, parent, enum, vds.Get(i)))
 	}
+
 	return enum
 }
 
@@ -647,37 +713,56 @@ type Message struct {
 	Comments CommentSet // comments associated with this message
 }
 
-func newMessage(gen *Plugin, f *File, parent *Message, desc protoreflect.MessageDescriptor) *Message {
+//
+func newMessage(
+	gen *Plugin,							// 插件
+	f *File,								// 文件
+	parent *Message,						// 父
+	desc protoreflect.MessageDescriptor,	// 描述
+) *Message {
+
+	// 位置信息
 	var loc Location
 	if parent != nil {
 		loc = parent.Location.appendPath(genid.DescriptorProto_NestedType_field_number, desc.Index())
 	} else {
 		loc = f.location.appendPath(genid.FileDescriptorProto_MessageType_field_number, desc.Index())
 	}
+
+	//
 	message := &Message{
-		Desc:     desc,
-		GoIdent:  newGoIdent(f, desc),
-		Location: loc,
-		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)),
+		Desc:     desc,					// 描述
+		GoIdent:  newGoIdent(f, desc),	// 标识符
+		Location: loc,					// 位置
+		Comments: makeCommentSet(f.Desc.SourceLocations().ByDescriptor(desc)), // 注释
 	}
+
+	// 保存 <类型名, &Message{}>
 	gen.messagesByName[desc.FullName()] = message
+
+	//
 	for i, eds := 0, desc.Enums(); i < eds.Len(); i++ {
 		message.Enums = append(message.Enums, newEnum(gen, f, message, eds.Get(i)))
 	}
+
 	for i, mds := 0, desc.Messages(); i < mds.Len(); i++ {
 		message.Messages = append(message.Messages, newMessage(gen, f, message, mds.Get(i)))
 	}
+
 	for i, fds := 0, desc.Fields(); i < fds.Len(); i++ {
 		message.Fields = append(message.Fields, newField(gen, f, message, fds.Get(i)))
 	}
+
 	for i, ods := 0, desc.Oneofs(); i < ods.Len(); i++ {
 		message.Oneofs = append(message.Oneofs, newOneof(gen, f, message, ods.Get(i)))
 	}
+
 	for i, xds := 0, desc.Extensions(); i < xds.Len(); i++ {
 		message.Extensions = append(message.Extensions, newField(gen, f, message, xds.Get(i)))
 	}
 
 	// Resolve local references between fields and oneofs.
+	//
 	for _, field := range message.Fields {
 		if od := field.Desc.ContainingOneof(); od != nil {
 			oneof := message.Oneofs[od.Index()]
@@ -805,6 +890,8 @@ type Field struct {
 }
 
 func newField(gen *Plugin, f *File, message *Message, desc protoreflect.FieldDescriptor) *Field {
+
+
 	var loc Location
 	switch {
 	case desc.IsExtension() && message == nil:
@@ -814,6 +901,8 @@ func newField(gen *Plugin, f *File, message *Message, desc protoreflect.FieldDes
 	default:
 		loc = message.Location.appendPath(genid.DescriptorProto_Field_field_number, desc.Index())
 	}
+
+
 	camelCased := strs.GoCamelCase(string(desc.Name()))
 	var parentPrefix string
 	if message != nil {
@@ -991,6 +1080,7 @@ type GeneratedFile struct {
 // NewGeneratedFile creates a new generated file with the given filename
 // and import path.
 func (gen *Plugin) NewGeneratedFile(filename string, goImportPath GoImportPath) *GeneratedFile {
+
 	g := &GeneratedFile{
 		gen:              gen,
 		filename:         filename,
@@ -1173,12 +1263,19 @@ func (g *GeneratedFile) Content() ([]byte, error) {
 
 // metaFile returns the contents of the file's metadata file, which is a
 // text formatted string of the google.protobuf.GeneratedCodeInfo.
+//
+// metaFile 返回文件的元数据，它是 google.protobuf.GeneratedCodeInfo 格式的字符串。
+//
 func (g *GeneratedFile) metaFile(content []byte) (string, error) {
+
+	// 语法树
 	fset := token.NewFileSet()
 	astFile, err := parser.ParseFile(fset, "", content, 0)
 	if err != nil {
 		return "", err
 	}
+
+
 	info := &descriptorpb.GeneratedCodeInfo{}
 
 	seenAnnotations := make(map[string]bool)
@@ -1193,6 +1290,7 @@ func (g *GeneratedFile) metaFile(content []byte) (string, error) {
 			})
 		}
 	}
+
 	for _, decl := range astFile.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -1234,16 +1332,19 @@ func (g *GeneratedFile) metaFile(content []byte) (string, error) {
 			}
 		}
 	}
+
 	for a := range g.annotations {
 		if !seenAnnotations[a] {
 			return "", fmt.Errorf("%v: no symbol matching annotation %q", g.filename, a)
 		}
 	}
 
+
 	b, err := prototext.Marshal(info)
 	if err != nil {
 		return "", err
 	}
+
 	return string(b), nil
 }
 
@@ -1274,16 +1375,25 @@ func newGoIdent(f *File, d protoreflect.Descriptor) GoIdent {
 
 // A GoImportPath is the import path of a Go package.
 // For example: "google.golang.org/protobuf/compiler/protogen"
+//
+// go 的导入路径
 type GoImportPath string
 
-func (p GoImportPath) String() string { return strconv.Quote(string(p)) }
+func (p GoImportPath) String() string {
+	return strconv.Quote(string(p))
+}
 
 // Ident returns a GoIdent with s as the GoName and p as the GoImportPath.
 func (p GoImportPath) Ident(s string) GoIdent {
-	return GoIdent{GoName: s, GoImportPath: p}
+	return GoIdent{
+		GoName: s,
+		GoImportPath: p,
+	}
 }
 
 // A GoPackageName is the name of a Go package. e.g., "protobuf".
+//
+// go 的包名
 type GoPackageName string
 
 // cleanPackageName converts a string to a valid Go package name.
@@ -1300,11 +1410,10 @@ const (
 
 // A Location is a location in a .proto source file.
 //
-// See the google.protobuf.SourceCodeInfo documentation in descriptor.proto
-// for details.
+// See the google.protobuf.SourceCodeInfo documentation in descriptor.proto for details.
 type Location struct {
-	SourceFile string
-	Path       protoreflect.SourcePath
+	SourceFile string					// 源文件
+	Path       protoreflect.SourcePath	// 路径，是一个字段号序列
 }
 
 // appendPath add elements to a Location's path, returning a new Location.
@@ -1314,8 +1423,7 @@ func (loc Location) appendPath(num protoreflect.FieldNumber, idx int) Location {
 	return loc
 }
 
-// CommentSet is a set of leading and trailing comments associated
-// with a .proto descriptor declaration.
+// CommentSet is a set of leading and trailing comments associated with a .proto descriptor declaration.
 type CommentSet struct {
 	LeadingDetached []Comments	// 前导分离注释
 	Leading         Comments	// 前导注释
@@ -1340,6 +1448,8 @@ type Comments string
 // String formats the comments by inserting // to the start of each line,
 // ensuring that there is a trailing newline.
 // An empty comment is formatted as an empty string.
+//
+// 将 c 按 "\n" 拆分，在每一行前后添加 "//" 和 "\n" 。
 func (c Comments) String() string {
 	if c == "" {
 		return ""

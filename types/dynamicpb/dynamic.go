@@ -64,13 +64,12 @@ type extensionType struct {
 // Operations which modify a Message are not safe for concurrent use.
 //
 //
-//
 type Message struct {
 	// 类型
 	typ     messageType
-	// 常规字段
+	// 常规字段: id => 值
 	known   map[pref.FieldNumber]pref.Value
-	// 扩展字段
+	// 扩展字段: id => desc
 	ext     map[pref.FieldNumber]pref.FieldDescriptor
 	// 未知字段
 	unknown pref.RawFields
@@ -83,6 +82,7 @@ var (
 )
 
 // NewMessage creates a new message with the provided descriptor.
+//
 func NewMessage(desc pref.MessageDescriptor) *Message {
 	return &Message{
 		typ:   messageType{desc},

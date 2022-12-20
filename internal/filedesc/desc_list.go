@@ -284,11 +284,16 @@ type SourceLocations struct {
 	// List is a list of SourceLocations.
 	// The SourceLocation.Next field does not need to be populated
 	// as it will be lazily populated upon first need.
+	//
+	// List 是 SourceLocation 的列表，SourceLocation.Next 字段不需要被填入，它会在首次使用时被懒加载。
 	List []pref.SourceLocation
+
 
 	// File is the parent file descriptor that these locations are relative to.
 	// If non-nil, ByDescriptor verifies that the provided descriptor
 	// is a child of this file descriptor.
+	//
+	// File 是这些 Locations 关联的父文件描述符。
 	File pref.FileDescriptor
 
 	once   sync.Once

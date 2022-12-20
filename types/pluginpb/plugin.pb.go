@@ -197,9 +197,16 @@ type CodeGeneratorRequest struct {
 	// The .proto files that were explicitly listed on the command-line.  The
 	// code generator should generate code only for these files.  Each file's
 	// descriptor will be included in proto_file, below.
+	//
+	// 在命令行中明确列出的 .proto 文件名，generator 只为这些文件生成代码。
+	// 每个文件的 descriptor 被包含在下面的 proto_file 中。
 	FileToGenerate []string `protobuf:"bytes,1,rep,name=file_to_generate,json=fileToGenerate" json:"file_to_generate,omitempty"`
+
 	// The generator parameter passed on the command-line.
+	//
+	// 命令行传递的 generator 参数。
 	Parameter *string `protobuf:"bytes,2,opt,name=parameter" json:"parameter,omitempty"`
+
 	// FileDescriptorProtos for all files in files_to_generate and everything
 	// they import.  The files will appear in topological order, so each file
 	// appears before any file that imports it.
@@ -214,7 +221,18 @@ type CodeGeneratorRequest struct {
 	//
 	// Type names of fields and extensions in the FileDescriptorProto are always
 	// fully qualified.
+	//
+	// FileDescriptorProtos 包含 FileToGenerate 中的所有文件，以及它们导入文件的描述符。
+	// 这些文件将以拓扑顺序出现，所以每个文件都出现在导入它的任何文件之前。
+	//
+	// protoc 保证所有的 proto_files 将被写在上面的字段之后，尽管这在技术上并不被 protobuf 线格式所保证。
+	// 理论上，这可以让一个插件以流式方式输入 FileDescriptorProtos 并逐一处理它们，而不是一次性将整个集合读入内存。
+	// 然而，在撰写本文时，protoc 并没有进行类似的优化 -- 它将在把所有字段发送到插件之前一次性存储在内存中。
+	//
+	// FileDescriptorProto 中字段和扩展名的类型名称总是合法的。
+	//
 	ProtoFile []*descriptorpb.FileDescriptorProto `protobuf:"bytes,15,rep,name=proto_file,json=protoFile" json:"proto_file,omitempty"`
+
 	// The version number of protocol compiler.
 	CompilerVersion *Version `protobuf:"bytes,3,opt,name=compiler_version,json=compilerVersion" json:"compiler_version,omitempty"`
 }
@@ -293,9 +311,14 @@ type CodeGeneratorResponse struct {
 	// problem in protoc itself -- such as the input CodeGeneratorRequest being
 	// unparseable -- should be reported by writing a message to stderr and
 	// exiting with a non-zero status code.
+	//
+	// 生成失败
 	Error *string `protobuf:"bytes,1,opt,name=error" json:"error,omitempty"`
+
 	// A bitmask of supported features that the code generator supports.
 	// This is a bitwise "or" of values from the Feature enum.
+	//
+	// generator 所支持特性的位掩码。
 	SupportedFeatures *uint64                       `protobuf:"varint,2,opt,name=supported_features,json=supportedFeatures" json:"supported_features,omitempty"`
 	File              []*CodeGeneratorResponse_File `protobuf:"bytes,15,rep,name=file" json:"file,omitempty"`
 }

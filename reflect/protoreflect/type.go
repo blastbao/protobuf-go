@@ -205,10 +205,15 @@ type FileImports interface {
 }
 
 // FileImport is the declaration for a proto file import.
+// FileImport 是一个 proto 文件导入的声明。
 type FileImport struct {
+
 	// FileDescriptor is the file type for the given import.
 	// It is a placeholder descriptor if IsWeak is set or if a dependency has
 	// not been regenerated to implement the new reflection APIs.
+	//
+	// FileDescriptor 是导入的文件类型。
+	// 如果 IsWeak 被设置，那么它就是一个占位符描述符。
 	FileDescriptor
 
 	// IsPublic reports whether this is a public import, which causes this file
@@ -217,6 +222,10 @@ type FileImport struct {
 	// existing dependencies.
 	//
 	// The current file and the imported file must be within proto package.
+	//
+	// IsPublic 报告这是否是一个公共的导入，这将导致这个文件在导入的文件中出现别名声明。
+	// 这个功能的预期用例是在不破坏现有依赖关系的情况下移动 proto 文件的能力。
+	// 当前文件和导入的文件必须在 proto 包内。
 	IsPublic bool
 
 	// IsWeak reports whether this is a weak import, which does not impose
@@ -224,6 +233,9 @@ type FileImport struct {
 	//
 	// Weak imports are a legacy proto1 feature. Equivalent behavior is
 	// achieved using proto2 extension fields or proto3 Any messages.
+	//
+	// IsWeak 报告这是否是一个弱导入，它不对目标文件施加直接依赖性。
+	// 弱导入是一个遗留的 proto1 特性。相同的行为是使用 proto2 的扩展字段或 proto3 的 any 消息来实现。
 	IsWeak bool
 }
 
@@ -236,6 +248,8 @@ type FileImport struct {
 //
 //
 type MessageDescriptor interface {
+
+	//
 	Descriptor
 
 	// IsMapEntry indicates that this is an auto-generated message type to

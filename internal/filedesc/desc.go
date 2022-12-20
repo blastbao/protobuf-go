@@ -498,10 +498,10 @@ type (
 	}
 
 	BaseL0 struct {
-		FullName   pref.FullName // must be populated
-		ParentFile *File         // must be populated
-		Parent     pref.Descriptor
-		Index      int
+		FullName   pref.FullName 	// 名称    // must be populated
+		ParentFile *File         	// 文件    // must be populated
+		Parent     pref.Descriptor	// 描述符
+		Index      int				// 索引
 	}
 )
 

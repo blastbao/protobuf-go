@@ -87,6 +87,8 @@ type SourceLocation struct {
 // a repeated field that form a path starting from the root file descriptor.
 //
 // See google.protobuf.SourceCodeInfo.Location.path.
+//
+// SourcePath 是一个字段号的序列，形成一个从根文件描述符开始的路径。
 type SourcePath []int32
 
 // Equal reports whether p1 equals p2.

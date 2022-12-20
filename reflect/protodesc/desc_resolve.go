@@ -17,6 +17,9 @@ import (
 // resolver is a wrapper around a local registry of declarations within the file
 // and the remote resolver. The remote resolver is restricted to only return
 // descriptors that have been imported.
+//
+// resolver 是对文件中声明的本地注册表和远程解析器的一个封装。
+// 远程解析器被限制为只返回已经被导入的描述符。
 type resolver struct {
 	local   descsByName
 	remote  Resolver
@@ -26,13 +29,22 @@ type resolver struct {
 }
 
 func (r *resolver) resolveMessageDependencies(ms []filedesc.Message, mds []*descriptorpb.DescriptorProto) (err error) {
+	// 遍历 msg
 	for i, md := range mds {
+
 		m := &ms[i]
+
+		// 遍历 field
 		for j, fd := range md.GetField() {
+
 			f := &m.L2.Fields.List[j]
+
+			// 如果当前 field 是 required ，就保存到 m 的 required 列表中
 			if f.L1.Cardinality == protoreflect.Required {
 				m.L2.RequiredNumbers.List = append(m.L2.RequiredNumbers.List, f.L1.Number)
 			}
+
+			//
 			if fd.OneofIndex != nil {
 				k := int(fd.GetOneofIndex())
 				if !(0 <= k && k < len(md.GetOneofDecl())) {
@@ -46,6 +58,7 @@ func (r *resolver) resolveMessageDependencies(ms []filedesc.Message, mds []*desc
 			if f.L1.Kind, f.L1.Enum, f.L1.Message, err = r.findTarget(f.Kind(), f.Parent().FullName(), partialName(fd.GetTypeName()), f.IsWeak()); err != nil {
 				return errors.New("message field %q cannot resolve type: %v", f.FullName(), err)
 			}
+
 			if fd.DefaultValue != nil {
 				v, ev, err := unmarshalDefault(fd.GetDefaultValue(), f, r.allowUnresolvable)
 				if err != nil {
@@ -53,6 +66,8 @@ func (r *resolver) resolveMessageDependencies(ms []filedesc.Message, mds []*desc
 				}
 				f.L1.Default = filedesc.DefaultValue(v, ev)
 			}
+
+
 		}
 
 		if err := r.resolveMessageDependencies(m.L1.Messages.List, md.GetNestedType()); err != nil {

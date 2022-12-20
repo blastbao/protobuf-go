@@ -80,6 +80,8 @@ var NotFound = errors.New("not found")
 // Files is a registry for looking up or iterating over files and the
 // descriptors contained within them.
 // The Find and Range methods are safe for concurrent use.
+//
+// Files 是一个注册中心，用于查找或遍历文件及其关联的描述符。
 type Files struct {
 	// The map of descsByName contains:
 	//	EnumDescriptor
@@ -93,8 +95,16 @@ type Files struct {
 	// multiple files. Only top-level declarations are registered.
 	// Note that enum values are in the top-level since that are in the same
 	// scope as the parent enum.
-	descsByName map[protoreflect.FullName]interface{}
-	filesByPath map[string][]protoreflect.FileDescriptor
+	//
+	// 注意，文件被存储为 slice ，因为一个包下可能包含多个文件。
+	//
+	// 只有顶层的声明被注册。
+	//
+	// 注意，枚举值在顶层，因为它与父枚举处于同一范围。
+	descsByName map[protoreflect.FullName]interface{}		// full name => desc
+	filesByPath map[string][]protoreflect.FileDescriptor	// import path => []fd{}
+
+	// 文件数
 	numFiles    int
 }
 
@@ -109,18 +119,28 @@ type packageDescriptor struct {
 // then the file is not registered and an error is returned.
 //
 // It is permitted for multiple files to have the same file path.
+//
+// RegisterFile 注册文件描述符。
+// 如果发生冲突（例如，两个全名相同的枚举累心），那么将丢弃并报错。
+// 允许多个文件具有相同的文件路径。
 func (r *Files) RegisterFile(file protoreflect.FileDescriptor) error {
+
 	if r == GlobalFiles {
 		globalMutex.Lock()
 		defer globalMutex.Unlock()
 	}
+
 	if r.descsByName == nil {
 		r.descsByName = map[protoreflect.FullName]interface{}{
 			"": &packageDescriptor{},
 		}
 		r.filesByPath = make(map[string][]protoreflect.FileDescriptor)
 	}
+
+	// 文件路径
 	path := file.Path()
+
+	// 文件是否已经注册
 	if prev := r.filesByPath[path]; len(prev) > 0 {
 		r.checkGenProtoConflict(path)
 		err := errors.New("file %q is already registered", file.Path())
@@ -130,6 +150,7 @@ func (r *Files) RegisterFile(file protoreflect.FileDescriptor) error {
 		}
 	}
 
+	// 包名是否冲突
 	for name := file.Package(); name != ""; name = name.Parent() {
 		switch prev := r.descsByName[name]; prev.(type) {
 		case nil, *packageDescriptor:
@@ -142,6 +163,8 @@ func (r *Files) RegisterFile(file protoreflect.FileDescriptor) error {
 			return err
 		}
 	}
+
+
 	var err error
 	var hasConflict bool
 	rangeTopLevelDescriptors(file, func(d protoreflect.Descriptor) {
@@ -158,17 +181,26 @@ func (r *Files) RegisterFile(file protoreflect.FileDescriptor) error {
 		return err
 	}
 
+	// 假设 package = "foo.bar.demo" ，需要逐层从 foo.bar.demo => foo.bar => foo 初始化
 	for name := file.Package(); name != ""; name = name.Parent() {
 		if r.descsByName[name] == nil {
 			r.descsByName[name] = &packageDescriptor{}
 		}
 	}
+
+	// 将 file 注册到 "foo.bar.demo" 包下
 	p := r.descsByName[file.Package()].(*packageDescriptor)
 	p.files = append(p.files, file)
+
+	// ???
 	rangeTopLevelDescriptors(file, func(d protoreflect.Descriptor) {
 		r.descsByName[d.FullName()] = d
 	})
+
+	// 将 file 注册到 import path 上
 	r.filesByPath[path] = append(r.filesByPath[path], file)
+
+	// 更新文件数
 	r.numFiles++
 	return nil
 }
@@ -310,14 +342,20 @@ func (s *nameSuffix) Pop() (name protoreflect.Name) {
 //
 // This returns (nil, NotFound) if not found.
 // This returns an error if multiple files have the same path.
+//
+//
+// 根据 path 查找文件描述符。
 func (r *Files) FindFileByPath(path string) (protoreflect.FileDescriptor, error) {
+
 	if r == nil {
 		return nil, NotFound
 	}
+
 	if r == GlobalFiles {
 		globalMutex.RLock()
 		defer globalMutex.RUnlock()
 	}
+
 	fds := r.filesByPath[path]
 	switch len(fds) {
 	case 0:

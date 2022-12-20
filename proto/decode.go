@@ -129,7 +129,9 @@ func (o UnmarshalOptions) unmarshalMessageSlow(b []byte, m protoreflect.Message)
 		return o.unmarshalMessageSet(b, m)
 	}
 	fields := md.Fields()
+
 	for len(b) > 0 {
+
 		// Parse the tag (field number and wire type).
 		num, wtyp, tagLen := protowire.ConsumeTag(b)
 		if tagLen < 0 {
@@ -150,6 +152,7 @@ func (o UnmarshalOptions) unmarshalMessageSlow(b []byte, m protoreflect.Message)
 				fd = extType.TypeDescriptor()
 			}
 		}
+
 		var err error
 		if fd == nil {
 			err = errUnknown
@@ -170,6 +173,7 @@ func (o UnmarshalOptions) unmarshalMessageSlow(b []byte, m protoreflect.Message)
 		default:
 			valLen, err = o.unmarshalSingular(b[tagLen:], wtyp, m, fd)
 		}
+
 		if err != nil {
 			if err != errUnknown {
 				return err

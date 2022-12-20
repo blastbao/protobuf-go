@@ -29,7 +29,6 @@ import (
 //		- 消息字段顺序不同。
 
 
-
 // Protobuf 消息的结构为键/值对的集合，其中数字标签为键，相应的字段为值。
 // 字段名称是供人类阅读的，但是 protoc 编译器的确使用了字段名称来生成特定于语言的对应名称。
 // 例如，Protobuf IDL 中的 oddA 和 small 名称在 Go 结构中分别成为字段 OddA 和 Small。
@@ -239,12 +238,12 @@ func (o MarshalOptions) marshal(b []byte, m protoreflect.Message) (out protoifac
 		return out, err
 	}
 
-	//
+	// 运行部分序列化
 	if allowPartial {
 		return out, nil
 	}
 
-	//
+	// 检查是否 OK
 	return out, checkInitialized(m)
 }
 

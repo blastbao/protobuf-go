@@ -475,10 +475,13 @@ type EnumRanges interface {
 // Name is the short name for a proto declaration. This is not the name
 // as used in Go source code, which might not be identical to the proto name.
 //
+// Name 是短声明
 type Name string // e.g., "Kind"
 
 // IsValid reports whether s is a syntactically valid name.
 // An empty name is invalid.
+//
+// 是否合法名称
 func (s Name) IsValid() bool {
 	return consumeIdent(string(s)) == len(s)
 }
@@ -501,6 +504,9 @@ type Names interface {
 // with a '.' delimiter placed between each Name.
 //
 // This should not have any leading or trailing dots.
+//
+// FullName 是一个限定的名称，可以唯一地识别一个 proto 声明。
+// 一个限定的名字是 proto 包与完全声明的名字的连接，每个名称之间有一个 '.' 分隔符。
 type FullName string // e.g., "google.protobuf.Field.Kind"
 
 // IsValid reports whether s is a syntactically valid full name.

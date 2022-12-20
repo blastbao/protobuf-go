@@ -73,17 +73,26 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.Generated
 	// 告诉 protoc 要生成一个新文件，并获取一个引用 g ，后面可以通过 g 来写入新文件的内容
 	g := gen.NewGeneratedFile(filename, file.GoImportPath)
 
+	// 基于 protogen.File 又封装了一个 internal_gengo.fileInfo 对象，包含一些生成相关的特殊逻辑
 	f := newFileInfo(file)
 
+	// Proto 的注释
 	genStandaloneComments(g, f, int32(genid.FileDescriptorProto_Syntax_field_number))
+
+	// 通用头部注释
 	genGeneratedHeader(gen, g, f)
+
+	// Package 的注释
 	genStandaloneComments(g, f, int32(genid.FileDescriptorProto_Package_field_number))
 
+	// 有一些 Package 的特殊注释
 	packageDoc := genPackageKnownComment(f)
 	g.P(packageDoc, "package ", f.GoPackageName)
 	g.P()
 
 	// Emit a static check that enforces a minimum version of the proto package.
+	//
+	// 通用静态检查
 	if GenerateVersionMarkers {
 		g.P("const (")
 		g.P("// Verify that this generated code is sufficiently up-to-date.")
@@ -117,12 +126,18 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.Generated
 
 // genStandaloneComments prints all leading comments for a FileDescriptorProto
 // location identified by the field number n.
+//
 func genStandaloneComments(g *protogen.GeneratedFile, f *fileInfo, n int32) {
+	//
 	loc := f.Desc.SourceLocations().ByPath(protoreflect.SourcePath{n})
+
+	// 前导分离注释
 	for _, s := range loc.LeadingDetachedComments {
 		g.P(protogen.Comments(s))
 		g.P()
 	}
+
+	// 前导注释
 	if s := loc.LeadingComments; s != "" {
 		g.P(protogen.Comments(s))
 		g.P()
@@ -522,7 +537,28 @@ func genMessageMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 }
 
 func genMessageBaseMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
+
 	// Reset method.
+	//
+	// type Status struct {
+	//	state         protoimpl.MessageState
+	//	sizeCache     protoimpl.SizeCache
+	//	unknownFields protoimpl.UnknownFields
+	//
+	//	Code int32 `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	//	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	//	Details []*anypb.Any `protobuf:"bytes,3,rep,name=details,proto3" json:"details,omitempty"`
+	// }
+	//
+	// func (x *Status) Reset() {
+	//	*x = Status{}
+	//	if protoimpl.UnsafeEnabled {
+	//		mi := &file_google_rpc_status_proto_msgTypes[0]
+	//		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	//		ms.StoreMessageInfo(mi)
+	//	}
+	// }
+	//
 	g.P("func (x *", m.GoIdent, ") Reset() {")
 	g.P("*x = ", m.GoIdent, "{}")
 	g.P("if ", protoimplPackage.Ident("UnsafeEnabled"), " {")
@@ -534,19 +570,47 @@ func genMessageBaseMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInf
 	g.P()
 
 	// String method.
+	//
+	// func (x *Status) String() string {
+	//	return protoimpl.X.MessageStringOf(x)
+	// }
+	//
 	g.P("func (x *", m.GoIdent, ") String() string {")
 	g.P("return ", protoimplPackage.Ident("X"), ".MessageStringOf(x)")
 	g.P("}")
 	g.P()
 
 	// ProtoMessage method.
+	//
+	// func (*Status) ProtoMessage() {}
+	//
 	g.P("func (*", m.GoIdent, ") ProtoMessage() {}")
 	g.P()
 
 	// ProtoReflect method.
+	//
+	//
+	// func (x *Status) ProtoReflect() protoreflect.Message {
+	//	mi := &file_google_rpc_status_proto_msgTypes[0]
+	//	if protoimpl.UnsafeEnabled && x != nil {
+	//		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	//		if ms.LoadMessageInfo() == nil {
+	//			ms.StoreMessageInfo(mi)
+	//		}
+	//		return ms
+	//	}
+	//	return mi.MessageOf(x)
+	// }
+	//
 	genMessageReflectMethods(g, f, m)
 
 	// Descriptor method.
+	//
+	// // Deprecated: Use Status.ProtoReflect.Descriptor instead.
+	// func (*Status) Descriptor() ([]byte, []int) {
+	//	return file_google_rpc_status_proto_rawDescGZIP(), []int{0}
+	// }
+	//
 	if m.genRawDescMethod {
 		var indexes []string
 		for i := 1; i < len(m.Location.Path); i += 2 {
@@ -562,7 +626,11 @@ func genMessageBaseMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInf
 }
 
 func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
+
+	// 遍历 fields
+
 	for _, field := range m.Fields {
+
 		genNoInterfacePragma(g, m.isTracked)
 
 		// Getter for parent oneof.
@@ -578,6 +646,7 @@ func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 		}
 
 		// Getter for message field.
+
 		goType, pointer := fieldGoType(g, f, field)
 		defaultValue := fieldDefaultValue(g, f, m, field)
 		g.Annotate(m.GoIdent.GoName+".Get"+field.GoName, field.Location)
@@ -603,16 +672,26 @@ func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 			g.P("return ", defaultValue)
 			g.P("}")
 		default:
+
+			// func (x *Status) GetCode() int32 {
+			//	if x != nil {
+			//		return x.Code
+			//	}
+			//	return 0
+			// }
+
 			g.P(leadingComments, "func (x *", m.GoIdent, ") Get", field.GoName, "() ", goType, " {")
 			if !field.Desc.HasPresence() || defaultValue == "nil" {
 				g.P("if x != nil {")
 			} else {
 				g.P("if x != nil && x.", field.GoName, " != nil {")
 			}
+
 			star := ""
 			if pointer {
 				star = "*"
 			}
+
 			g.P("return ", star, " x.", field.GoName)
 			g.P("}")
 			g.P("return ", defaultValue)
@@ -631,8 +710,7 @@ func genMessageSetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 		genNoInterfacePragma(g, m.isTracked)
 
 		g.Annotate(m.GoIdent.GoName+".Set"+field.GoName, field.Location)
-		leadingComments := appendDeprecationSuffix("",
-			field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
+		leadingComments := appendDeprecationSuffix("", field.Desc.Options().(*descriptorpb.FieldOptions).GetDeprecated())
 		g.P(leadingComments, "func (x *", m.GoIdent, ") Set", field.GoName, "(v ", protoPackage.Ident("Message"), ") {")
 		g.P("var w *", protoimplPackage.Ident("WeakFields"))
 		g.P("if x != nil {")
