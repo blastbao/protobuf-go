@@ -233,9 +233,9 @@ func sizeMessageInfo(p pointer, f *coderFieldInfo, opts marshalOptions) int {
 }
 
 func appendMessageInfo(b []byte, p pointer, f *coderFieldInfo, opts marshalOptions) ([]byte, error) {
-	b = protowire.AppendVarint(b, f.wiretag)
-	b = protowire.AppendVarint(b, uint64(f.mi.sizePointer(p.Elem(), opts)))
-	return f.mi.marshalAppendPointer(b, p.Elem(), opts)
+	b = protowire.AppendVarint(b, f.wiretag)								// type + number
+	b = protowire.AppendVarint(b, uint64(f.mi.sizePointer(p.Elem(), opts)))	// size
+	return f.mi.marshalAppendPointer(b, p.Elem(), opts)						// 递归
 }
 
 func consumeMessageInfo(b []byte, p pointer, wtyp protowire.Type, f *coderFieldInfo, opts unmarshalOptions) (out unmarshalOutput, err error) {

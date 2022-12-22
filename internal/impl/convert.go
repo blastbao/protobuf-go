@@ -20,9 +20,11 @@ type unwrapper interface {
 // A Converter coverts to/from Go reflect.Value types and protobuf protoreflect.Value types.
 type Converter interface {
 	// PBValueOf converts a reflect.Value to a protoreflect.Value.
+	// 将 reflect.Value 转换为 pref.Value
 	PBValueOf(reflect.Value) pref.Value
 
 	// GoValueOf converts a protoreflect.Value to a reflect.Value.
+	// 将 pref.Value 转换为 reflect.Value
 	GoValueOf(pref.Value) reflect.Value
 
 	// IsValidPB returns whether a protoreflect.Value is compatible with this type.
@@ -172,15 +174,20 @@ type int32Converter struct {
 	def    pref.Value
 }
 
+
+// PBValueOf 把 reflect.Value 转换为 pref.Value
 func (c *int32Converter) PBValueOf(v reflect.Value) pref.Value {
 	if v.Type() != c.goType {
 		panic(fmt.Sprintf("invalid type: got %v, want %v", v.Type(), c.goType))
 	}
 	return pref.ValueOfInt32(int32(v.Int()))
 }
+
+// GoValueOf 把 pref.Value 转换为 reflect.Value
 func (c *int32Converter) GoValueOf(v pref.Value) reflect.Value {
 	return reflect.ValueOf(int32(v.Int())).Convert(c.goType)
 }
+
 func (c *int32Converter) IsValidPB(v pref.Value) bool {
 	_, ok := v.Interface().(int32)
 	return ok

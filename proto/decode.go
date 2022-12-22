@@ -128,6 +128,8 @@ func (o UnmarshalOptions) unmarshalMessageSlow(b []byte, m protoreflect.Message)
 	if messageset.IsMessageSet(md) {
 		return o.unmarshalMessageSet(b, m)
 	}
+
+
 	fields := md.Fields()
 
 	for len(b) > 0 {

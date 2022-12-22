@@ -37,6 +37,7 @@ var wireTypes = map[protoreflect.Kind]protowire.Type{
 	protoreflect.GroupKind:    protowire.StartGroupType,
 }
 
+// 根据 fd 描述的字段类型 fd.Kind() ，从 v 中解析出真正的 value 值，并按照规定格式写入到 []byte 中。
 func (o MarshalOptions) marshalSingular(b []byte, fd protoreflect.FieldDescriptor, v protoreflect.Value) ([]byte, error) {
 	switch fd.Kind() {
 	case protoreflect.BoolKind:
@@ -74,7 +75,7 @@ func (o MarshalOptions) marshalSingular(b []byte, fd protoreflect.FieldDescripto
 		b = protowire.AppendString(b, v.String())
 	case protoreflect.BytesKind:
 		b = protowire.AppendBytes(b, v.Bytes())
-	// 如果是内嵌的 message 类型，
+	// 如果是内嵌的 message 类型，递归调用
 	case protoreflect.MessageKind:
 		var pos int
 		var err error

@@ -28,6 +28,7 @@ type reflectMessageInfo struct {
 	denseFields []*fieldInfo
 
 	// rangeInfos is a list of all fields (not belonging to a oneof) and oneofs.
+	// 包含所有字段信息
 	rangeInfos []interface{} // either *fieldInfo or *oneofInfo
 
 	getUnknown   func(pointer) pref.RawFields
@@ -39,6 +40,7 @@ type reflectMessageInfo struct {
 
 // makeReflectFuncs generates the set of functions to support reflection.
 func (mi *MessageInfo) makeReflectFuncs(t reflect.Type, si structInfo) {
+	//
 	mi.makeKnownFieldsFunc(si)
 	mi.makeUnknownFieldsFunc(t, si)
 	mi.makeExtensionFieldsFunc(t, si)
@@ -51,17 +53,28 @@ func (mi *MessageInfo) makeReflectFuncs(t reflect.Type, si structInfo) {
 //
 // This code assumes that the struct is well-formed and panics if there are
 // any discrepancies.
+//
+//
 func (mi *MessageInfo) makeKnownFieldsFunc(si structInfo) {
+	// 保存字段 Number 和 field_info 的映射
 	mi.fields = map[pref.FieldNumber]*fieldInfo{}
+
 	md := mi.Desc
 	fds := md.Fields()
+
+	// 遍历 Message 的各个字段描述符
 	for i := 0; i < fds.Len(); i++ {
+		// 当前字段描述符
 		fd := fds.Get(i)
+		// 当前字段在 Go Struct 中的 reflect.StructField 类型
 		fs := si.fieldsByNumber[fd.Number()]
+		// 如果当前字段是 oneof 类型，那么根据 name 在 si.oneofsByName 中查找其在 Go Struct 中的 reflect.StructField 类型
 		isOneof := fd.ContainingOneof() != nil && !fd.ContainingOneof().IsSynthetic()
 		if isOneof {
 			fs = si.oneofsByName[fd.ContainingOneof().Name()]
 		}
+
+		// 基于 fd, fs 生成 fi ，fi 包含 fd 且额外包含一组反射操作函数(Get/Set/Has).
 		var fi fieldInfo
 		switch {
 		case fs.Type == nil:
@@ -79,14 +92,18 @@ func (mi *MessageInfo) makeKnownFieldsFunc(si structInfo) {
 		default:
 			fi = fieldInfoForScalar(fd, fs, mi.Exporter)
 		}
+
+		// 将 fi 和字段 Number 关联起来
 		mi.fields[fd.Number()] = &fi
 	}
+
 
 	mi.oneofs = map[pref.Name]*oneofInfo{}
 	for i := 0; i < md.Oneofs().Len(); i++ {
 		od := md.Oneofs().Get(i)
 		mi.oneofs[od.Name()] = makeOneofInfo(od, si, mi.Exporter)
 	}
+
 
 	mi.denseFields = make([]*fieldInfo, fds.Len()*2)
 	for i := 0; i < fds.Len(); i++ {
@@ -105,6 +122,7 @@ func (mi *MessageInfo) makeKnownFieldsFunc(si structInfo) {
 			i++
 		}
 	}
+
 
 	// Introduce instability to iteration order, but keep it deterministic.
 	if len(mi.rangeInfos) > 1 && detrand.Bool() {
@@ -376,9 +394,12 @@ var (
 // a pointer to the message type. It is a generalized way of providing a
 // reflective view over a message instance. The disadvantage of this approach
 // is the need to allocate this tuple of 16B.
+//
+// messageDataType 包含指向 message data/type 的指针，这是对 message 实例进行反射的通用方法。
+// 这种方法的缺点是需要分配这个 16B 的元组。
 type messageDataType struct {
-	p  pointer
-	mi *MessageInfo
+	p  pointer			// message data
+	mi *MessageInfo		// message type
 }
 
 type (
@@ -396,14 +417,23 @@ var (
 // MessageOf returns a reflective view over a message. The input must be a
 // pointer to a named Go struct. If the provided type has a ProtoReflect method,
 // it must be implemented by calling this method.
+//
+// MessageOf 返回 m 的反射视图，输入必须是 *struct 指针。
+//
+// 注意，此时 mi 可能还未被初始化，在执行到 Range() 函数中，会执行 mi.init() 初始化。
+//	 (m *messageReflectWrapper) Range() {}
 func (mi *MessageInfo) MessageOf(m interface{}) pref.Message {
 	if reflect.TypeOf(m) != mi.GoReflectType {
 		panic(fmt.Sprintf("type mismatch: got %T, want %v", m, mi.GoReflectType))
 	}
+
+	// 获取 m 引用的真实对象的指针
 	p := pointerOfIface(m)
 	if p.IsNil() {
 		return mi.nilMessage.Init(mi)
 	}
+
+	// 把数据指针和类型封装成 Wrapper 对象，它实现了 pref.Message 接口
 	return &messageReflectWrapper{p, mi}
 }
 
@@ -431,22 +461,28 @@ func (m *messageIfaceWrapper) protoUnwrap() interface{} {
 // checkField verifies that the provided field descriptor is valid.
 // Exactly one of the returned values is populated.
 func (mi *MessageInfo) checkField(fd pref.FieldDescriptor) (*fieldInfo, pref.ExtensionType) {
+	// 查询字段信息
 	var fi *fieldInfo
 	if n := fd.Number(); 0 < n && int(n) < len(mi.denseFields) {
 		fi = mi.denseFields[n]
 	} else {
 		fi = mi.fields[n]
 	}
+
+	// 如果存在
 	if fi != nil {
+		// 字段描述符必须匹配
 		if fi.fieldDesc != fd {
 			if got, want := fd.FullName(), fi.fieldDesc.FullName(); got != want {
 				panic(fmt.Sprintf("mismatching field: got %v, want %v", got, want))
 			}
 			panic(fmt.Sprintf("mismatching field: %v", fd.FullName()))
 		}
+		// 返回字段信息
 		return fi, nil
 	}
 
+	// 如果不存在，检查扩展字段
 	if fd.IsExtension() {
 		if got, want := fd.ContainingMessage().FullName(), mi.Desc.FullName(); got != want {
 			// TODO: Should this be exact containing message descriptor match?

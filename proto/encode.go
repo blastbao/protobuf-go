@@ -96,6 +96,8 @@ type MarshalOptions struct {
 	// If deterministic serialization is requested, map entries will be
 	// sorted by keys in lexographical order. This is an implementation
 	// detail and subject to change.
+	//
+	// 同一个 msg 每次序列成相同的 []byte 。
 	Deterministic bool
 
 	// UseCachedSize indicates that the result of a previous Size call
@@ -116,6 +118,8 @@ type MarshalOptions struct {
 	// better performance, but there is no guarantee that they will do so.
 	// There is absolutely no guarantee that Size followed by Marshal with
 	// UseCachedSize set will perform equivalently to Marshal alone.
+	//
+	// 使用缓存的 Size
 	UseCachedSize bool
 }
 
@@ -126,10 +130,12 @@ func Marshal(m Message) ([]byte, error) {
 		return nil, nil
 	}
 
+	// [重要]
 	out, err := MarshalOptions{}.marshal(nil, m.ProtoReflect())
 	if len(out.Buf) == 0 && err == nil {
 		out.Buf = emptyBytesForMessage(m)
 	}
+
 	return out.Buf, err
 }
 
@@ -156,6 +162,9 @@ func (o MarshalOptions) Marshal(m Message) ([]byte, error) {
 //	m1.OptionalBytes, _ = proto.Marshal(m2)
 // where they expect the proto2 "optional_bytes" field to be populated
 // if any only if m2 is a valid message.
+//
+// 如果 m 非法，返回 nil 否则返回 empty 。
+//
 func emptyBytesForMessage(m Message) []byte {
 	if m == nil || !m.ProtoReflect().IsValid() {
 		return nil
@@ -186,14 +195,15 @@ func (o MarshalOptions) MarshalState(in protoiface.MarshalInput) (protoiface.Mar
 // marshal is a centralized function that all marshal operations go through.
 // For profiling purposes, avoid changing the name of this function or
 // introducing other code paths for marshal that do not go through this.
+//
+// marshal 是一个集中的函数，所有的 marshal 操作都要经过它。
+// 出于分析调试的目的，避免改变这个函数的名称或为 marshal 引入其他不经过这个函数的代码路径。
 func (o MarshalOptions) marshal(b []byte, m protoreflect.Message) (out protoiface.MarshalOutput, err error) {
 	allowPartial := o.AllowPartial
 	o.AllowPartial = true
 
 	// 如果 m 提供了合法的 Marshal() 函数，就直接调用它。
-	if methods := protoMethods(m);
-		methods != nil &&
-		methods.Marshal != nil &&
+	if methods := protoMethods(m); methods != nil && methods.Marshal != nil &&
 		!( o.Deterministic && methods.Flags&protoiface.SupportMarshalDeterministic == 0 ){
 
 		// 构造输入
@@ -204,9 +214,11 @@ func (o MarshalOptions) marshal(b []byte, m protoreflect.Message) (out protoifac
 
 		// 设置标记
 		if o.Deterministic {
+			// 同一个 msg 每次序列成相同的 []byte
 			in.Flags |= protoiface.MarshalDeterministic
 		}
 		if o.UseCachedSize {
+			// 使用缓存的 size
 			in.Flags |= protoiface.MarshalUseCachedSize
 		}
 
@@ -278,6 +290,7 @@ func growcap(oldcap, wantcap int) (newcap int) {
 	return newcap
 }
 
+// 只要实现了 protoreflect.Message 接口，就可以被序列化。
 func (o MarshalOptions) marshalMessageSlow(b []byte, m protoreflect.Message) ([]byte, error) {
 	if messageset.IsMessageSet(m.Descriptor()) {
 		return o.marshalMessageSet(b, m)
@@ -295,6 +308,8 @@ func (o MarshalOptions) marshalMessageSlow(b []byte, m protoreflect.Message) ([]
 	var err error
 
 	// 按 fieldOrder 顺序遍历 m 的 fields ，逐个调用 fn() 。
+	//
+	// 如果不要求 fields 有序，则简单等价于 m.Range(fn) 。
 	order.RangeFields(m, fieldOrder, func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 		// 将 fd 类型的 field 值 v 编码后存入 b 中。
 		b, err = o.marshalField(b, fd, v)
@@ -309,6 +324,7 @@ func (o MarshalOptions) marshalMessageSlow(b []byte, m protoreflect.Message) ([]
 	return b, nil
 }
 
+// 根据 fd 描述的类型信息，对 value 进行编码。
 func (o MarshalOptions) marshalField(b []byte, fd protoreflect.FieldDescriptor, value protoreflect.Value) ([]byte, error) {
 	switch {
 	// 编码 list
@@ -319,9 +335,9 @@ func (o MarshalOptions) marshalField(b []byte, fd protoreflect.FieldDescriptor, 
 		return o.marshalMap(b, fd, value.Map())
 	// 编码单值类型
 	default:
-		// 编码 wiretag
+		// 编码 wiretag = number + kind
 		b = protowire.AppendTag(b, fd.Number(), wireTypes[fd.Kind()])
-		// 编码 data
+		// 编码 data : 根据 fd 描述的数据类型 fd.Kind() ，从 v 中解析出真正的 value 值，并按照规定格式写入到 []byte 中。
 		return o.marshalSingular(b, fd, value)
 	}
 }
@@ -346,12 +362,12 @@ func (o MarshalOptions) marshalList(b []byte, fd protoreflect.FieldDescriptor, l
 			}
 		}
 
-		// 填充总字节数
+		// 回填总字节数
 		b = finishSpeculativeLength(b, pos)
 		return b, nil
 	}
 
-
+	// 非 pack 类型
 	kind := fd.Kind()
 	for i, llen := 0, list.Len(); i < llen; i++ {
 		var err error

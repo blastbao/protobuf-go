@@ -13,18 +13,22 @@ import (
 )
 
 type messageField struct {
-	fd pref.FieldDescriptor
-	v  pref.Value
+	fd pref.FieldDescriptor	// 字段描述符
+	v  pref.Value			// 字段值
 }
 
 var messageFieldPool = sync.Pool{
-	New: func() interface{} { return new([]messageField) },
+	New: func() interface{} {
+		return new([]messageField)	// 字段数组缓冲池
+	},
 }
 
 type (
-	// FieldRnger is an interface for visiting all fields in a message.
+
+	// FieldRanger is an interface for visiting all fields in a message.
 	// The protoreflect.Message type implements this interface.
 	//
+	// 遍历 message 内的所有 fields .
 	FieldRanger interface{
 		Range(VisitField)
 	}
@@ -34,13 +38,22 @@ type (
 )
 
 // RangeFields iterates over the fields of fs according to the specified order.
+//
+// 因为默认的 range 是无序的，如果需要有序，需要先 range 把 fields 提取出来、排序、再 range + fn 逐个处理。
 func RangeFields(fs FieldRanger, less FieldOrder, fn VisitField) {
 
+	// 未指定 order ，直接调用 fs
 	if less == nil {
 		fs.Range(fn)
 		return
 	}
 
+	// 若指定 order ，就需要提取出 message 中所有 fields ，排序后再逐个应用 fn 。
+
+
+
+	// 分配 fields 数组，把 message 中的每个 field 提取出来缓存到数组中
+	//
 	// Obtain a pre-allocated scratch buffer.
 	p := messageFieldPool.Get().(*[]messageField)
 	fields := (*p)[:0]
@@ -50,17 +63,21 @@ func RangeFields(fs FieldRanger, less FieldOrder, fn VisitField) {
 			messageFieldPool.Put(p)
 		}
 	}()
-
 	// Collect all fields in the message and sort them.
 	fs.Range(func(fd pref.FieldDescriptor, v pref.Value) bool {
 		fields = append(fields, messageField{fd, v})
 		return true
 	})
+
+
+	// 对 fields 数组进行排序
 	sort.Slice(fields, func(i, j int) bool {
 		return less(fields[i].fd, fields[j].fd)
 	})
 
 	// Visit the fields in the specified ordering.
+	//
+	// 对 fields 数组逐个执行 fn()
 	for _, f := range fields {
 		if !fn(f.fd, f.v) {
 			return

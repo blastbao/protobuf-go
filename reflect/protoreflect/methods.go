@@ -21,6 +21,7 @@ import (
 // 这里的定义和 protoiface 中的定义必须保持同步。
 type (
 
+	//
 	methods = struct {
 		pragma.NoUnkeyedLiterals
 		// 标记位

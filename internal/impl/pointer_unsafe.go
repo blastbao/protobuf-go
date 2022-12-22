@@ -23,6 +23,7 @@ type Pointer unsafe.Pointer
 type offset uintptr
 
 // offsetOf returns a field offset for the struct field.
+// offsetOf 返回字段在结构体中的偏移量
 func offsetOf(f reflect.StructField, x exporter) offset {
 	return offset(f.Offset)
 }
@@ -37,7 +38,9 @@ var invalidOffset = ^offset(0)
 var zeroOffset = offset(0)
 
 // pointer is a pointer to a message struct or field.
-type pointer struct{ p unsafe.Pointer }
+type pointer struct{
+	p unsafe.Pointer
+}
 
 // pointerOf returns p as a pointer.
 func pointerOf(p Pointer) pointer {
@@ -69,7 +72,9 @@ func (p pointer) Apply(f offset) pointer {
 	if p.IsNil() {
 		panic("invalid nil pointer")
 	}
-	return pointer{p: unsafe.Pointer(uintptr(p.p) + uintptr(f))}
+	return pointer{
+		p: unsafe.Pointer(uintptr(p.p) + uintptr(f)),
+	}
 }
 
 // AsValueOf treats p as a pointer to an object of type t and returns the value.

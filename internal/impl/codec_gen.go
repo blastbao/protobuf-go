@@ -212,10 +212,10 @@ func consumeBoolSlice(b []byte, p pointer, wtyp protowire.Type, f *coderFieldInf
 }
 
 var coderBoolSlice = pointerCoderFuncs{
-	size:      sizeBoolSlice,
-	marshal:   appendBoolSlice,
-	unmarshal: consumeBoolSlice,
-	merge:     mergeBoolSlice,
+	size:      sizeBoolSlice,		//
+	marshal:   appendBoolSlice,		//
+	unmarshal: consumeBoolSlice,	//
+	merge:     mergeBoolSlice,		//
 }
 
 // sizeBoolPackedSlice returns the size of wire encoding a []bool pointer as a packed repeated Bool.

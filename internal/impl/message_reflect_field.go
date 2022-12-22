@@ -16,6 +16,7 @@ import (
 )
 
 type fieldInfo struct {
+	// 字段描述符
 	fieldDesc pref.FieldDescriptor
 
 	// These fields are used for protobuf reflection support.
@@ -149,17 +150,28 @@ func fieldInfoForMap(fd pref.FieldDescriptor, fs reflect.StructField, x exporter
 	if ft.Kind() != reflect.Map {
 		panic(fmt.Sprintf("field %v has invalid type: got %v, want map kind", fd.FullName(), ft))
 	}
+
+	//
 	conv := NewConverter(ft, fd)
 
 	// TODO: Implement unsafe fast path?
+	// 返回字段 fs 在结构体中的偏移量
 	fieldOffset := offsetOf(fs, x)
+
 	return fieldInfo{
 		fieldDesc: fd,
 		has: func(p pointer) bool {
+			// p 是 message 结构体指针，若为空直接返回
 			if p.IsNil() {
 				return false
 			}
+			// p 是 message 结构体指针，fieldOffset 是字段的偏移，所以：
+			//	- p.Apply(fieldOffset) 将指针定位到该字段，得到 fp
+			//  - p.Apply(fieldOffset).AsValueOf(fs.Type) 将字段指针 fp 和 relect.Type 封装成 reflect.Value 对象
+			//  - p.Apply(fieldOffset).AsValueOf(fs.Type).Elem() 将指针解引用，定位到字段值对象
 			rv := p.Apply(fieldOffset).AsValueOf(fs.Type).Elem()
+
+			// 返回字段的 length
 			return rv.Len() > 0
 		},
 		clear: func(p pointer) {
@@ -174,14 +186,17 @@ func fieldInfoForMap(fd pref.FieldDescriptor, fs reflect.StructField, x exporter
 			if rv.Len() == 0 {
 				return conv.Zero()
 			}
+			//
 			return conv.PBValueOf(rv)
 		},
 		set: func(p pointer, v pref.Value) {
 			rv := p.Apply(fieldOffset).AsValueOf(fs.Type).Elem()
+			// 把 pref.Value 转换为 reflect.Value
 			pv := conv.GoValueOf(v)
 			if pv.IsNil() {
 				panic(fmt.Sprintf("map field %v cannot be set with read-only value", fd.FullName()))
 			}
+			// 把 reflect.Value 赋值给 rv
 			rv.Set(pv)
 		},
 		mutable: func(p pointer) pref.Value {

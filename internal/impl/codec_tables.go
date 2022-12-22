@@ -32,8 +32,9 @@ type valueCoderFuncs struct {
 	merge     func(dst, src pref.Value, opts mergeOptions) pref.Value
 }
 
-// fieldCoder returns pointer functions for a field, used for operating on
-// struct fields.
+// fieldCoder returns pointer functions for a field, used for operating on struct fields.
+//
+// fieldCoder 返回某个字段的指针函数，用于操作结构体字段。
 func fieldCoder(fd pref.FieldDescriptor, ft reflect.Type) (*MessageInfo, pointerCoderFuncs) {
 	switch {
 	case fd.IsMap():

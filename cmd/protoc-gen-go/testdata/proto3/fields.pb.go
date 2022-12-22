@@ -118,6 +118,8 @@ func (*FieldTestMessage) ProtoMessage() {}
 
 func (x *FieldTestMessage) ProtoReflect() protoreflect.Message {
 	mi := &file_cmd_protoc_gen_go_testdata_proto3_fields_proto_msgTypes[0]
+
+	// 允许使用 unsafe 包
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -125,6 +127,8 @@ func (x *FieldTestMessage) ProtoReflect() protoreflect.Message {
 		}
 		return ms
 	}
+
+	// 把 mi 和 x 封装成 messageReflectWrapper 对象，它实现了 protoreflect.Message 接口。
 	return mi.MessageOf(x)
 }
 
@@ -592,9 +596,11 @@ var (
 )
 
 func file_cmd_protoc_gen_go_testdata_proto3_fields_proto_rawDescGZIP() []byte {
+	// 解压缩
 	file_cmd_protoc_gen_go_testdata_proto3_fields_proto_rawDescOnce.Do(func() {
 		file_cmd_protoc_gen_go_testdata_proto3_fields_proto_rawDescData = protoimpl.X.CompressGZIP(file_cmd_protoc_gen_go_testdata_proto3_fields_proto_rawDescData)
 	})
+	// 返回
 	return file_cmd_protoc_gen_go_testdata_proto3_fields_proto_rawDescData
 }
 

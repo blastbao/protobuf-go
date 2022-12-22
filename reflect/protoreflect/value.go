@@ -63,6 +63,9 @@ type Message interface {
 	// Range returns immediately if f returns false.
 	// While iterating, mutating operations may only be performed
 	// on the current field descriptor.
+	//
+	// Range 以不确定的顺序遍历每个已填充的字段，为遇到的每个字段描述符 fd 和值 val 调用 fn() 。
+	// 如果 fn 返回 false ，Range 立即结束并返回。在迭代过程中，mutating 操作只能在当前字段描述符上进行。
 	Range(f func(FieldDescriptor, Value) bool)
 
 	// Has reports whether a field is populated.
@@ -159,7 +162,7 @@ type Message interface {
 	// "google.golang.org/protobuf/runtime/protoiface".Methods.
 	// Consult the protoiface package documentation for details.
 	//
-	//
+	// ProtoMethods 返回各种操作的直接实现，可能会返回 nil 。
 	ProtoMethods() *methods
 }
 

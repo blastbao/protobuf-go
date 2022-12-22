@@ -44,6 +44,7 @@ func (mi *MessageInfo) size(in piface.SizeInput) piface.SizeOutput {
 }
 
 func (mi *MessageInfo) sizePointer(p pointer, opts marshalOptions) (size int) {
+	// 初始化（懒加载）
 	mi.init()
 	if p.IsNil() {
 		return 0
@@ -53,6 +54,7 @@ func (mi *MessageInfo) sizePointer(p pointer, opts marshalOptions) (size int) {
 			return int(size)
 		}
 	}
+	//
 	return mi.sizePointerSlow(p, opts)
 }
 
@@ -64,10 +66,12 @@ func (mi *MessageInfo) sizePointerSlow(p pointer, opts marshalOptions) (size int
 		}
 		return size
 	}
+
 	if mi.extensionOffset.IsValid() {
 		e := p.Apply(mi.extensionOffset).Extensions()
 		size += mi.sizeExtensions(e, opts)
 	}
+
 	for _, f := range mi.orderedCoderFields {
 		if f.funcs.size == nil {
 			continue
@@ -78,11 +82,14 @@ func (mi *MessageInfo) sizePointerSlow(p pointer, opts marshalOptions) (size int
 		}
 		size += f.funcs.size(fptr, f, opts)
 	}
+
 	if mi.unknownOffset.IsValid() {
 		if u := mi.getUnknownBytes(p); u != nil {
 			size += len(*u)
 		}
 	}
+
+
 	if mi.sizecacheOffset.IsValid() {
 		if size > math.MaxInt32 {
 			// The size is too large for the int32 sizecache field.
@@ -102,23 +109,33 @@ func (mi *MessageInfo) marshal(in piface.MarshalInput) (out piface.MarshalOutput
 	if ms, ok := in.Message.(*messageState); ok {
 		p = ms.pointer()
 	} else {
+		// 提取数据对象的指针
 		p = in.Message.(*messageReflectWrapper).pointer()
 	}
+
+	// 执行序列化
 	b, err := mi.marshalAppendPointer(in.Buf, p, marshalOptions{
 		flags: in.Flags,
 	})
+
+	// 返回结果
 	return piface.MarshalOutput{Buf: b}, err
 }
 
 func (mi *MessageInfo) marshalAppendPointer(b []byte, p pointer, opts marshalOptions) ([]byte, error) {
+	// 确保 mi 初始化
 	mi.init()
+
+	// 检查 message 非空
 	if p.IsNil() {
 		return b, nil
 	}
+
 	if flags.ProtoLegacy && mi.isMessageSet {
 		return marshalMessageSet(mi, b, p, opts)
 	}
 	var err error
+
 	// The old marshaler encodes extensions at beginning.
 	if mi.extensionOffset.IsValid() {
 		e := p.Apply(mi.extensionOffset).Extensions()
@@ -128,19 +145,25 @@ func (mi *MessageInfo) marshalAppendPointer(b []byte, p pointer, opts marshalOpt
 			return b, err
 		}
 	}
+
+	// 遍历所有字段
 	for _, f := range mi.orderedCoderFields {
+		// 字段的序列化函数
 		if f.funcs.marshal == nil {
 			continue
 		}
+		// 字段的对象指针
 		fptr := p.Apply(f.offset)
 		if f.isPointer && fptr.Elem().IsNil() {
 			continue
 		}
+		// 字段序列化
 		b, err = f.funcs.marshal(b, fptr, f, opts)
 		if err != nil {
 			return b, err
 		}
 	}
+
 	if mi.unknownOffset.IsValid() && !mi.isMessageSet {
 		if u := mi.getUnknownBytes(p); u != nil {
 			b = append(b, (*u)...)

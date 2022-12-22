@@ -65,7 +65,7 @@ type extensionType struct {
 //
 //
 type Message struct {
-	// 类型
+	// 类型（描述符），拥有一个消息所有的信息，如字段名称、序号、类型等。
 	typ     messageType
 	// 常规字段: id => 值
 	known   map[pref.FieldNumber]pref.Value
@@ -82,7 +82,6 @@ var (
 )
 
 // NewMessage creates a new message with the provided descriptor.
-//
 func NewMessage(desc pref.MessageDescriptor) *Message {
 	return &Message{
 		typ:   messageType{desc},
@@ -144,6 +143,7 @@ func (m *Message) ProtoMethods() *protoiface.Methods {
 //
 // 对每个字段执行 f 。
 func (m *Message) Range(f func(pref.FieldDescriptor, pref.Value) bool) {
+	// 遍历每个字段
 	for num, v := range m.known {
 		// 获取 field descriptor
 		fd := m.ext[num]
@@ -193,6 +193,8 @@ func (m *Message) Clear(fd pref.FieldDescriptor) {
 
 // Get returns the value of a field.
 // See protoreflect.Message for details.
+//
+// 根据 fd 获取字段值
 func (m *Message) Get(fd pref.FieldDescriptor) pref.Value {
 	m.checkField(fd)
 	num := fd.Number()
@@ -389,7 +391,7 @@ func (m *Message) checkField(fd pref.FieldDescriptor) {
 }
 
 type messageType struct {
-	desc pref.MessageDescriptor
+	desc pref.MessageDescriptor // 描述符
 }
 
 // NewMessageType creates a new MessageType with the provided descriptor.

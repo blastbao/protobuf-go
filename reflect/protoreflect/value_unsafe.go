@@ -45,6 +45,8 @@ var (
 
 // typeOf returns a pointer to the Go type information.
 // The pointer is comparable and equal if and only if the types are identical.
+//
+// 获取 interface{} 的底层 type
 func typeOf(t interface{}) unsafe.Pointer {
 	return (*ifaceHeader)(unsafe.Pointer(&t)).Type
 }
@@ -76,17 +78,21 @@ type value struct {
 	num uint64 // 8B
 }
 
+// 把 string 转换为统一的 Value 对象
 func valueOfString(v string) Value {
 	// 将 string 转换为 *stringHeader 指针
 	p := (*stringHeader)(unsafe.Pointer(&v))
 	// 构造 Value
 	return Value{typ: stringType, ptr: p.Data, num: uint64(len(v))}
 }
+
+// 把 []byte 转换为统一的 Value 对象
 func valueOfBytes(v []byte) Value {
 	p := (*sliceHeader)(unsafe.Pointer(&v))
 	return Value{typ: bytesType, ptr: p.Data, num: uint64(len(v))}
 }
 
+// 把 interface{} 转换为统一的 Value 对象
 func valueOfIface(v interface{}) Value {
 	// 解析 interface{} 头
 	p := (*ifaceHeader)(unsafe.Pointer(&v))
@@ -97,12 +103,14 @@ func valueOfIface(v interface{}) Value {
 	}
 }
 
+
+// 把 Value 转换为 string
 func (v Value) getString() (x string) {
 	// [原理]
 	// v.ptr 指向底层 string 数据，v.num 存储了 string 的长度。
 	// 所以 stringHeader{ Data: v.ptr, Len: v.num } 就代表了 go 中的 String 数据。
 
-	// 这里先取 x 的地址，转换成 pointer ，然后转换为 stringHeader ，最后通过赋值来实现返回。
+	// 这里先取 x 的地址，转换成 pointer ，然后转换为 *stringHeader ，最后通过赋值来实现返回。
 	*(*stringHeader)(unsafe.Pointer(&x)) = stringHeader{
 		Data: v.ptr,
 		Len: int(v.num),
@@ -112,13 +120,19 @@ func (v Value) getString() (x string) {
 func (v Value) getBytes() (x []byte) {
 
 	// [原理]
-	// v.ptr 指向底层 []byte 数据，v.num 存储了 []byte] 的长度。
+	// v.ptr 指向底层 []byte 数据，v.num 存储了 []byte 的长度。
 	// 所以 sliceHeader{ Data: v.ptr, Len: v.num , Cap: v.num } 就代表了 go 中的 Slice 数据。
 
+	// 这里先取 x 的地址，转换成 pointer ，然后转换为 *sliceHeader ，最后通过赋值来实现返回。
 	*(*sliceHeader)(unsafe.Pointer(&x)) = sliceHeader{Data: v.ptr, Len: int(v.num), Cap: int(v.num)}
 	return x
 }
 func (v Value) getIface() (x interface{}) {
+
+	// [原理]
+	//	v.ptr 指向底层数据，v.typ 指向 reflect.Type 。
+	//  所以 ifaceHeader{ Type: v.typ, Data: v.ptr } 就代表了 go 中的 Interface{} 数据。
+
 	*(*ifaceHeader)(unsafe.Pointer(&x)) = ifaceHeader{Type: v.typ, Data: v.ptr}
 	return x
 }

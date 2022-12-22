@@ -98,6 +98,9 @@ func (mi *MessageInfo) unmarshalPointer(b []byte, p pointer, groupTag protowire.
 	var exts *map[int32]ExtensionField
 	start := len(b)
 	for len(b) > 0 {
+
+		// 提取 tag
+		//
 		// Parse the tag (field number and wire type).
 		var tag uint64
 		if b[0] < 0x80 {
@@ -114,6 +117,8 @@ func (mi *MessageInfo) unmarshalPointer(b []byte, p pointer, groupTag protowire.
 			}
 			b = b[n:]
 		}
+
+		// 解析 wire 和 num
 		var num protowire.Number
 		if n := tag >> 3; n < uint64(protowire.MinValidNumber) || n > uint64(protowire.MaxValidNumber) {
 			return out, errDecode
@@ -130,12 +135,15 @@ func (mi *MessageInfo) unmarshalPointer(b []byte, p pointer, groupTag protowire.
 			break
 		}
 
+		// 根据 Number 查找 Field ，进而找到该字段对应的 coder 信息
 		var f *coderFieldInfo
 		if int(num) < len(mi.denseCoderFields) {
 			f = mi.denseCoderFields[num]
 		} else {
 			f = mi.coderFields[num]
 		}
+
+		// 使用 f.funcs.unmarshal 执行快速反序列化
 		var n int
 		err := errUnknown
 		switch {

@@ -147,7 +147,9 @@ func (m *messageReflectWrapper) protoUnwrap() interface{} {
 	return m.pointer().AsIfaceOf(m.messageInfo().GoReflectType.Elem())
 }
 func (m *messageReflectWrapper) ProtoMethods() *protoiface.Methods {
+	// 确保 m.mi 被初始化
 	m.messageInfo().init()
+	// 返回 m.mi.methods
 	return &m.messageInfo().methods
 }
 
@@ -161,11 +163,15 @@ func (m *messageReflectWrapper) ProtoMessageInfo() *MessageInfo {
 }
 
 func (m *messageReflectWrapper) Range(f func(protoreflect.FieldDescriptor, protoreflect.Value) bool) {
+	// 初始化
 	m.messageInfo().init()
+	// 遍历所有字段，逐个调用 fn
 	for _, ri := range m.messageInfo().rangeInfos {
 		switch ri := ri.(type) {
 		case *fieldInfo:
+			// 检查 message 中 ri 字段是否存在
 			if ri.has(m.pointer()) {
+				// 调用 fn
 				if !f(ri.fieldDesc, ri.get(m.pointer())) {
 					return
 				}
@@ -179,10 +185,13 @@ func (m *messageReflectWrapper) Range(f func(protoreflect.FieldDescriptor, proto
 			}
 		}
 	}
+
 	m.messageInfo().extensionMap(m.pointer()).Range(f)
 }
 func (m *messageReflectWrapper) Has(fd protoreflect.FieldDescriptor) bool {
+	// 初始化 MsgInfo
 	m.messageInfo().init()
+	//
 	if fi, xt := m.messageInfo().checkField(fd); fi != nil {
 		return fi.has(m.pointer())
 	} else {

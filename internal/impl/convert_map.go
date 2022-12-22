@@ -27,10 +27,12 @@ func newMapConverter(t reflect.Type, fd pref.FieldDescriptor) *mapConverter {
 	}
 }
 
+// v 是 map 类型
 func (c *mapConverter) PBValueOf(v reflect.Value) pref.Value {
 	if v.Type() != c.goType {
 		panic(fmt.Sprintf("invalid type: got %v, want %v", v.Type(), c.goType))
 	}
+
 	return pref.ValueOfMap(&mapReflect{v, c.keyConv, c.valConv})
 }
 

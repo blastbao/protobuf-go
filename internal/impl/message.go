@@ -24,15 +24,23 @@ import (
 //
 // The exported fields must be populated before any methods are called
 // and cannot be mutated after set.
+//
+// 对于给定的 go 类型，MessageInfo 提供了 protobuf 相关功能。
+// 一个给定的 MessageInfo 实例正好与一个 Go 类型相关联，该 Go 类型必须是一个指向结构类型的指针。
+//
+// 导出字段必须在调用任何方法之前填充，并且在设置之后不能被改变。???
 type MessageInfo struct {
 	// GoReflectType is the underlying message Go type and must be populated.
+	// 底层的 Go 类型
 	GoReflectType reflect.Type // pointer to struct
 
 	// Desc is the underlying message descriptor type and must be populated.
+	// 底层消息描述符
 	Desc pref.MessageDescriptor
 
 	// Exporter must be provided in a purego environment in order to provide
 	// access to unexported fields.
+	// 访问非导出字段
 	Exporter exporter
 
 	// OneofWrappers is list of pointers to oneof wrapper struct types.
@@ -41,7 +49,9 @@ type MessageInfo struct {
 	initMu   sync.Mutex // protects all unexported fields
 	initDone uint32
 
+	// 用于反射操作
 	reflectMessageInfo // for reflection implementation
+	// 用于快速操作
 	coderMessageInfo   // for fast-path method implementations
 }
 
@@ -69,6 +79,8 @@ func (mi *MessageInfo) init() {
 	// This function is called in the hot path. Inline the sync.Once logic,
 	// since allocating a closure for Once.Do is expensive.
 	// Keep init small to ensure that it can be inlined.
+	//
+	// 本函数在热路径中，这里没有使用 Once.Do 而是内联实现了 sync.Once 的逻辑，因为 Once.Do 分配一个闭包很昂贵。
 	if atomic.LoadUint32(&mi.initDone) == 0 {
 		mi.initOnce()
 	}
@@ -81,16 +93,24 @@ func (mi *MessageInfo) initOnce() {
 		return
 	}
 
+	// 底层 Go 类型必须是结构体指针
 	t := mi.GoReflectType
 	if t.Kind() != reflect.Ptr && t.Elem().Kind() != reflect.Struct {
 		panic(fmt.Sprintf("got %v, want *struct kind", t))
 	}
+
+	// 结构体类型
 	t = t.Elem()
 
+	// 把 t 解析并转换为 structInfo 对象
 	si := mi.makeStructInfo(t)
+
+	// 构造反射相关类型信息及函数
 	mi.makeReflectFuncs(t, si)
+	// 构造快速操作相关函数
 	mi.makeCoderMethods(t, si)
 
+	// 完成初始化
 	atomic.StoreUint32(&mi.initDone, 1)
 }
 
@@ -125,8 +145,8 @@ var (
 )
 
 type structInfo struct {
-	sizecacheOffset offset
-	sizecacheType   reflect.Type
+	sizecacheOffset offset			// "sizeCache"、"XXX_sizecache" 字段在 Message 结构体中的偏移量
+	sizecacheType   reflect.Type	// "sizeCache"、"XXX_sizecache" 字段的 Go 类型
 	weakOffset      offset
 	weakType        reflect.Type
 	unknownOffset   offset
@@ -134,13 +154,18 @@ type structInfo struct {
 	extensionOffset offset
 	extensionType   reflect.Type
 
+	// 保存字段 Number 与 reflect.StructField 的映射。
 	fieldsByNumber        map[pref.FieldNumber]reflect.StructField
+	// 保存 OneOf 字段 Name 与 reflect.StructField 的映射。
 	oneofsByName          map[pref.Name]reflect.StructField
+
 	oneofWrappersByType   map[reflect.Type]pref.FieldNumber
 	oneofWrappersByNumber map[pref.FieldNumber]reflect.Type
 }
 
+// 把 reflect.Type 解析并转换为 structInfo 对象。
 func (mi *MessageInfo) makeStructInfo(t reflect.Type) structInfo {
+
 	si := structInfo{
 		sizecacheOffset: invalidOffset,
 		weakOffset:      invalidOffset,
@@ -154,36 +179,58 @@ func (mi *MessageInfo) makeStructInfo(t reflect.Type) structInfo {
 	}
 
 fieldLoop:
+
+	// 遍历结构体各个字段
 	for i := 0; i < t.NumField(); i++ {
+		// 根据字段名称进行特殊处理
 		switch f := t.Field(i); f.Name {
+		// "sizeCache"、"XXX_sizecache"
 		case genid.SizeCache_goname, genid.SizeCacheA_goname:
 			if f.Type == sizecacheType {
-				si.sizecacheOffset = offsetOf(f, mi.Exporter)
-				si.sizecacheType = f.Type
+				si.sizecacheOffset = offsetOf(f, mi.Exporter) 	// 当前字段在结构体中的偏移量
+				si.sizecacheType = f.Type						// 当前字段的反射类型
 			}
+		// "weakFields"、"XXX_weak"
 		case genid.WeakFields_goname, genid.WeakFieldsA_goname:
 			if f.Type == weakFieldsType {
 				si.weakOffset = offsetOf(f, mi.Exporter)
 				si.weakType = f.Type
 			}
+		// "unknownFields"、"XXX_unrecognized"
 		case genid.UnknownFields_goname, genid.UnknownFieldsA_goname:
 			if f.Type == unknownFieldsAType || f.Type == unknownFieldsBType {
 				si.unknownOffset = offsetOf(f, mi.Exporter)
 				si.unknownType = f.Type
 			}
+		// "extensionFields"、"XXX_InternalExtensions"、"XXX_extensions"
 		case genid.ExtensionFields_goname, genid.ExtensionFieldsA_goname, genid.ExtensionFieldsB_goname:
 			if f.Type == extensionFieldsType {
 				si.extensionOffset = offsetOf(f, mi.Exporter)
 				si.extensionType = f.Type
 			}
 		default:
+			// eg.
+			//
+			// type TestNoEnforceUTF8 struct {
+			//	OptionalString string       `protobuf:"bytes,1,opt,name=optional_string"`
+			//	OptionalBytes  []byte       `protobuf:"bytes,2,opt,name=optional_bytes"`
+			//	RepeatedString []string     `protobuf:"bytes,3,rep,name=repeated_string"`
+			//	RepeatedBytes  [][]byte     `protobuf:"bytes,4,rep,name=repeated_bytes"`
+			//	OneofField     isOneofField `protobuf_oneof:"oneof_field"`
+			// }
+
+			// 遍历 `protobuf:"..."` 的 tags
 			for _, s := range strings.Split(f.Tag.Get("protobuf"), ",") {
+				// 检查是否为纯数字
 				if len(s) > 0 && strings.Trim(s, "0123456789") == "" {
+					// 数值转换后得到字段的 Number ，然后保存它与 field 的映射。
 					n, _ := strconv.ParseUint(s, 10, 64)
 					si.fieldsByNumber[pref.FieldNumber(n)] = f
 					continue fieldLoop
 				}
 			}
+
+			// 遍历 `protobuf_oneof:"..."` 的 tags
 			if s := f.Tag.Get("protobuf_oneof"); len(s) > 0 {
 				si.oneofsByName[pref.Name(s)] = f
 				continue fieldLoop
@@ -202,6 +249,7 @@ fieldLoop:
 			}
 		}
 	}
+
 	for _, v := range oneofWrappers {
 		tf := reflect.TypeOf(v).Elem()
 		f := tf.Field(0)

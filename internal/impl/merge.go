@@ -25,10 +25,12 @@ func (mi *MessageInfo) merge(in piface.MergeInput) piface.MergeOutput {
 	if !ok {
 		return piface.MergeOutput{}
 	}
+
 	sp, ok := mi.getPointer(in.Source)
 	if !ok {
 		return piface.MergeOutput{}
 	}
+
 	mi.mergePointer(dp, sp, mergeOptions{})
 	return piface.MergeOutput{Flags: piface.MergeComplete}
 }
