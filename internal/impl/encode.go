@@ -89,7 +89,6 @@ func (mi *MessageInfo) sizePointerSlow(p pointer, opts marshalOptions) (size int
 		}
 	}
 
-
 	if mi.sizecacheOffset.IsValid() {
 		if size > math.MaxInt32 {
 			// The size is too large for the int32 sizecache field.

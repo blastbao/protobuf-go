@@ -42,11 +42,15 @@ func Equal(x, y Message) bool {
 }
 
 // equalMessage compares two messages.
+//
+// message => field => value => message
 func equalMessage(mx, my pref.Message) bool {
+	// 必须是同一类型
 	if mx.Descriptor() != my.Descriptor() {
 		return false
 	}
 
+	// 遍历 mx 各个字段 <fx, vx>，取 my 中对应的 <fy, vy> ，比较是否相等，同时记录字段数目 nx 。
 	nx := 0
 	equal := true
 	mx.Range(func(fd pref.FieldDescriptor, vx pref.Value) bool {
@@ -58,11 +62,15 @@ func equalMessage(mx, my pref.Message) bool {
 	if !equal {
 		return false
 	}
+
+	// 遍历 my 各个字段，统计字段总数。
 	ny := 0
 	my.Range(func(fd pref.FieldDescriptor, vx pref.Value) bool {
 		ny++
 		return true
 	})
+
+	// 字段数目不同，则不等
 	if nx != ny {
 		return false
 	}
@@ -73,10 +81,13 @@ func equalMessage(mx, my pref.Message) bool {
 // equalField compares two fields.
 func equalField(fd pref.FieldDescriptor, x, y pref.Value) bool {
 	switch {
+	// list
 	case fd.IsList():
 		return equalList(fd, x.List(), y.List())
+	// map
 	case fd.IsMap():
 		return equalMap(fd, x.Map(), y.Map())
+	// 值
 	default:
 		return equalValue(fd, x, y)
 	}
@@ -84,12 +95,15 @@ func equalField(fd pref.FieldDescriptor, x, y pref.Value) bool {
 
 // equalMap compares two maps.
 func equalMap(fd pref.FieldDescriptor, x, y pref.Map) bool {
+	// 数目
 	if x.Len() != y.Len() {
 		return false
 	}
+	// 字段
 	equal := true
 	x.Range(func(k pref.MapKey, vx pref.Value) bool {
 		vy := y.Get(k)
+		// 数值比较
 		equal = y.Has(k) && equalValue(fd.MapValue(), vx, vy)
 		return equal
 	})
@@ -98,10 +112,13 @@ func equalMap(fd pref.FieldDescriptor, x, y pref.Map) bool {
 
 // equalList compares two lists.
 func equalList(fd pref.FieldDescriptor, x, y pref.List) bool {
+	// 数目
 	if x.Len() != y.Len() {
 		return false
 	}
+	// 字段
 	for i := x.Len() - 1; i >= 0; i-- {
+		// 数值比较
 		if !equalValue(fd, x.Get(i), y.Get(i)) {
 			return false
 		}
@@ -111,6 +128,9 @@ func equalList(fd pref.FieldDescriptor, x, y pref.List) bool {
 
 // equalValue compares two singular values.
 func equalValue(fd pref.FieldDescriptor, x, y pref.Value) bool {
+	// 基础类型: bool/enum/int/float/string/bytes
+	// 符合类型: message/interface
+
 	switch fd.Kind() {
 	case pref.BoolKind:
 		return x.Bool() == y.Bool()
@@ -134,6 +154,7 @@ func equalValue(fd pref.FieldDescriptor, x, y pref.Value) bool {
 		return x.String() == y.String()
 	case pref.BytesKind:
 		return bytes.Equal(x.Bytes(), y.Bytes())
+	// [重要] 递归比较 message ...
 	case pref.MessageKind, pref.GroupKind:
 		return equalMessage(x.Message(), y.Message())
 	default:

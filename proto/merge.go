@@ -19,7 +19,6 @@ import (
 //	- 如果字段为 repeated，则 append 到已有字段
 //	- 如果字段为嵌套消息，则递归执行 merge
 
-
 // Merge merges src into dst, which must be a message with the same descriptor.
 //
 // Populated scalar fields in src are copied to dst, while populated
